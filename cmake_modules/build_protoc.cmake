@@ -6,6 +6,7 @@ ExternalProject_Add(
     INSTALL_DIR         ${Protoc_ROOT}
     UPDATE_DISCONNECTED TRUE
     CMAKE_ARGS          --install-prefix ${Protoc_ROOT}
+                        -DCMAKE_INSTALL_LIBDIR=lib
                         -DCMAKE_BUILD_TYPE:STRING=Release
                         -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
                         -DCMAKE_POLICY_DEFAULT_CMP0074:STRING=NEW

@@ -83,7 +83,7 @@ ExternalProject_Add(
                         -DSDL2MIXER_OPUS_SHARED:BOOL=FALSE
                         -DSDL2MIXER_WAVPACK:BOOL=FALSE
                         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-                        
+                        -DCMAKE_INSTALL_LIBDIR=lib
     CMAKE_CACHE_ARGS
                         -DSDL2_DIR:STRING=${SDL_ROOT}/../
                         -DSDL_DIR:STRING=${SDL_ROOT}/../
