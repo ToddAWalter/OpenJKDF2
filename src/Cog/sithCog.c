@@ -1908,7 +1908,7 @@ int sithCog_InitCogs(sithWorld *world, int num)
 int sithCog_ThingFromSymbolidk(sithCog *cog, sithThing *thing, int linkId, int mask)
 {
     int thingIdx = sithThing_GetIdxFromThing(thing);
-    if ( !thingIdx || !thing->thing_id )
+    if ( !thingIdx || !thing->type )
         return 0;
     if ( linkId >= 0 )
     {
@@ -1917,7 +1917,7 @@ int sithCog_ThingFromSymbolidk(sithCog *cog, sithThing *thing, int linkId, int m
         sithCog_aThingLinks[sithCog_numThingLinks].cog = cog;
         sithCog_aThingLinks[sithCog_numThingLinks].linkid = linkId;
         sithCog_aThingLinks[sithCog_numThingLinks].mask = mask;
-        sithCog_aThingLinks[sithCog_numThingLinks].signature = thing->thing_id;
+        sithCog_aThingLinks[sithCog_numThingLinks].signature = thing->signature;
         sithCog_numThingLinks++;
     }
     return 1;
