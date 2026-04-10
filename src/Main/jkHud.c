@@ -104,7 +104,9 @@ int jkHud_Open()
         *bitmapIter->pBitmap = v3;
         if ( !v3 )
             Windows_GameErrorMsgbox("ERR_CANNOT_LOAD_FILE %s", tmp);
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
         stdBitmap_ConvertColorFormat(&Video_format.format, v3);
+#endif
         ++bitmapIter;
     }
 
@@ -133,7 +135,9 @@ int jkHud_Open()
         *fontIter->pFont = v5;
         if ( !v5 )
             Windows_GameErrorMsgbox("ERR_CANNOT_LOAD_FILE %s", tmp);
-        stdBitmap_ConvertColorFormat(&Video_format.format, v5->bitmap);
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
+        stdBitmap_ConvertColorFormat(&Video_format.format, v5->pBitmap);
+#endif
         ++fontIter;
     }
     jkHud_leftBlitX = 0;
@@ -194,11 +198,7 @@ void jkHud_Close()
 {
     if ( jkHud_bChatOpen )
     {
-        jkHud_chatStrPos = 0;
-        jkHud_bChatOpen = 0;
-        jkDev_sub_41FC90(103);
-        stdControl_Flush();
-        stdControl_bDisableKeyboard = 0;
+        jkHud_idk_time(); // Inlined
     }
     if ( !Main_bNoHUD )
     {
@@ -240,6 +240,10 @@ int jkHud_ClearRects(int unk)
     int v8; // eax
     int result; // eax
     rdRect a4; // [esp+Ch] [ebp-10h] BYREF
+
+    // Added: no crashing
+    if (!jkHud_bOpened)
+        return 1;
 
     v0 = Video_pCanvas->xStart;
     v1 = 0;
@@ -320,7 +324,7 @@ void jkHud_Draw()
     stdFont *healthFont; // edi
     int v18; // eax
     stdFont *ammoFont; // esi
-    double v20; // st7
+    flex_d_t v20; // st7
     int32_t v21; // rax
     int v22; // esi
     int v23; // edi
@@ -337,7 +341,7 @@ void jkHud_Draw()
     int v35; // edx
     int v36; // ecx
     jkHudTeamScore* v39; // ecx
-    int *v40; // eax
+    int32_t *v40; // eax
     int v41; // edx
     wchar_t *v42; // eax
     int v43; // eax
@@ -353,25 +357,26 @@ void jkHud_Draw()
     int v53; // esi
     jkHudTeamScore *v54; // edi
     wchar_t *v55; // eax
-    float v56; // [esp+0h] [ebp-168h]
-    float v57; // [esp+0h] [ebp-168h]
-    float v58; // [esp+0h] [ebp-168h]
-    float v59; // [esp+0h] [ebp-168h]
-    float v60; // [esp+0h] [ebp-168h]
-    float a2; // [esp+4h] [ebp-164h]
-    float a2a; // [esp+4h] [ebp-164h]
-    float a2b; // [esp+4h] [ebp-164h]
-    float a2c; // [esp+4h] [ebp-164h]
-    float a2d; // [esp+4h] [ebp-164h]
+    flex_t v56; // [esp+0h] [ebp-168h]
+    flex_t v57; // [esp+0h] [ebp-168h]
+    flex_t v58; // [esp+0h] [ebp-168h]
+    flex_t v59; // [esp+0h] [ebp-168h]
+    flex_t v60; // [esp+0h] [ebp-168h]
+    flex_t a2; // [esp+4h] [ebp-164h]
+    flex_t a2a; // [esp+4h] [ebp-164h]
+    flex_t a2b; // [esp+4h] [ebp-164h]
+    flex_t a2c; // [esp+4h] [ebp-164h]
+    flex_t a2d; // [esp+4h] [ebp-164h]
     wchar_t *v66; // [esp+8h] [ebp-160h]
     rdRect a4; // [esp+28h] [ebp-140h] BYREF
     char tmp[32]; // [esp+48h] [ebp-120h] BYREF
     wchar_t a6[128]; // [esp+68h] [ebp-100h] BYREF
-    float tmpFloat1;
+    flex_t tmpFloat1;
 
     if (!jkHud_bOpened)
         return;
 
+#ifdef SITH_DEBUG_STRUCT_NAMES
     if ( Main_bDispStats )
     {
         playerThing = sithWorld_pCurrentWorld->playerThing;
@@ -411,6 +416,7 @@ void jkHud_Draw()
         }
         jkDev_sub_41FC40(0x66, std_genBuffer);
     }
+#endif
 
 #ifdef SDL2_RENDER
     jkHud_DrawGPU();
@@ -612,14 +618,14 @@ void jkHud_Draw()
         uint32_t tmpInt;
 #ifdef QOL_IMPROVEMENTS
         // Scale crosshair with vertical resolution, not horizontal.
-        v20 = (double)Video_format.height * (0.0015625 / 3.0) * 4.0;
+        v20 = (flex_d_t)Video_format.height * (0.0015625 / 3.0) * 4.0;
 #else
-        v20 = (double)Video_format.width * 0.0015625;
+        v20 = (flex_d_t)Video_format.width * 0.0015625;
 #endif // QOL_IMPROVEMENTS
         v21 = (int32_t)(v20 + v20 + Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].xMax - -0.5);
         v22 = v21;
-        v23 = (int32_t)((double)(unsigned int)Video_format.height * 0.0020833334
-                      + (double)(unsigned int)Video_format.height * 0.0020833334
+        v23 = (int32_t)((flex_d_t)(unsigned int)Video_format.height * 0.0020833334
+                      + (flex_d_t)(unsigned int)Video_format.height * 0.0020833334
                       + Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].yMax
                       - -0.5);
         if ( Video_format.format.bpp == 8 )
@@ -638,7 +644,7 @@ void jkHud_Draw()
     rdScreenPoint tmpScreenPt;
     if ( jkHud_bHasTarget && jkHud_pTargetThing && rdPrimit3_GetScreenCoord(&jkHud_pTargetThing->position, &tmpScreenPt) )
     {
-        float valSin, valCos;
+        flex_t valSin, valCos;
         a2 = sithTime_curSeconds * 200.0;
         if ( Video_format.format.is16bit )
         {
@@ -728,7 +734,7 @@ void jkHud_Draw()
         {
             a4.width = 9;
             a4.x = jkHud_rectViewScores.x + 20;
-            a4.height = (*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height - 2;
+            a4.height = stdFont_GetHeight(jkHud_pMsgFontSft) - 2;
             v49 = jkStrings_GetUniStringWithFallback("HUD_TEAMSCORESTITLE");
             stdFont_Draw4(
                 Video_pMenuBuffer,
@@ -808,7 +814,7 @@ LABEL_116:
                             stdFont_Draw1(Video_pMenuBuffer, jkHud_pMsgFontSft, jkHud_rectViewScores.x + 90, v53, jkHud_rectViewScores.width, a6, 1);
                             jk_snwprintf(a6, 0x80u, L"%4d", v54->score);
                             stdFont_Draw1(Video_pMenuBuffer, jkHud_pMsgFontSft, jkHud_rectViewScores.x + 150, v53, jkHud_rectViewScores.width, a6, 1);
-                            v53 += (*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height + jkHud_pMsgFontSft->marginY;
+                            v53 += stdFont_GetHeight(jkHud_pMsgFontSft) + jkHud_pMsgFontSft->marginY;
                             break;
                     }
                 }
@@ -820,7 +826,7 @@ LABEL_116:
         {
             a4.x = jkHud_rectViewScores.x;
             a4.width = 9;
-            a4.height = (*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height - 2;
+            a4.height = stdFont_GetHeight(jkHud_pMsgFontSft) - 2;
             v42 = jkStrings_GetUniStringWithFallback("HUD_PLAYERSCORES");
             stdFont_Draw4(
                 Video_pMenuBuffer,
@@ -860,7 +866,7 @@ LABEL_116:
                     jk_snwprintf(a6, 0x80u, L"%4d", v46->score);
                     stdFont_Draw1(Video_pMenuBuffer, jkHud_pMsgFontSft, jkHud_rectViewScores.x + 190, v44, jkHud_rectViewScores.width, a6, 1);
                     ++v46;
-                    v44 += (*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height + jkHud_pMsgFontSft->marginY;
+                    v44 += stdFont_GetHeight(jkHud_pMsgFontSft) + jkHud_pMsgFontSft->marginY;
                     if ( ++v45 >= jkHud_numPlayers )
                         break;
                     v43 = jkHud_dword_553ED0;
@@ -921,7 +927,7 @@ void jkHud_DrawGPU()
     stdFont *healthFont; // edi
     int v18; // eax
     stdFont *ammoFont; // esi
-    double v20; // st7
+    flex_d_t v20; // st7
     int32_t v21; // rax
     int v22; // esi
     int v23; // edi
@@ -938,7 +944,7 @@ void jkHud_DrawGPU()
     int v35; // edx
     int v36; // ecx
     jkHudTeamScore* v39; // ecx
-    int *v40; // eax
+    int32_t *v40; // eax
     int v41; // edx
     wchar_t *v42; // eax
     int v43; // eax
@@ -954,21 +960,21 @@ void jkHud_DrawGPU()
     int v53; // esi
     jkHudTeamScore *v54; // edi
     wchar_t *v55; // eax
-    float v56; // [esp+0h] [ebp-168h]
-    float v57; // [esp+0h] [ebp-168h]
-    float v58; // [esp+0h] [ebp-168h]
-    float v59; // [esp+0h] [ebp-168h]
-    float v60; // [esp+0h] [ebp-168h]
-    float a2; // [esp+4h] [ebp-164h]
-    float a2a; // [esp+4h] [ebp-164h]
-    float a2b; // [esp+4h] [ebp-164h]
-    float a2c; // [esp+4h] [ebp-164h]
-    float a2d; // [esp+4h] [ebp-164h]
+    flex_t v56; // [esp+0h] [ebp-168h]
+    flex_t v57; // [esp+0h] [ebp-168h]
+    flex_t v58; // [esp+0h] [ebp-168h]
+    flex_t v59; // [esp+0h] [ebp-168h]
+    flex_t v60; // [esp+0h] [ebp-168h]
+    flex_t a2; // [esp+4h] [ebp-164h]
+    flex_t a2a; // [esp+4h] [ebp-164h]
+    flex_t a2b; // [esp+4h] [ebp-164h]
+    flex_t a2c; // [esp+4h] [ebp-164h]
+    flex_t a2d; // [esp+4h] [ebp-164h]
     wchar_t *v66; // [esp+8h] [ebp-160h]
     rdRect a4; // [esp+28h] [ebp-140h] BYREF
     char tmp[32]; // [esp+48h] [ebp-120h] BYREF
     wchar_t a6[128]; // [esp+68h] [ebp-100h] BYREF
-    float tmpFloat1;
+    flex_t tmpFloat1;
 
     if (!jkHud_bOpened)
         return;
@@ -1052,7 +1058,7 @@ void jkHud_DrawGPU()
                 jkHud_pFieldlightBm->yPos,
                 0,
                 1);*/
-            std3D_DrawUIBitmap(jkHud_pFieldlightBm, v6, jkHud_rightBlitX + (int)((float)jkHud_pFieldlightBm->xPos * jkPlayer_hudScale), jkHud_rightBlitY + (int)((float)jkHud_pFieldlightBm->yPos * jkPlayer_hudScale), NULL, jkPlayer_hudScale, 1);
+            std3D_DrawUIBitmap(jkHud_pFieldlightBm, v6, jkHud_rightBlitX + (int)((flex_t)jkHud_pFieldlightBm->xPos * jkPlayer_hudScale), jkHud_rightBlitY + (int)((flex_t)jkHud_pFieldlightBm->yPos * jkPlayer_hudScale), NULL, jkPlayer_hudScale, 1);
         }
         v7 = (int32_t)sithInventory_GetBinAmount(v4, SITHBIN_FORCEMANA);
         if ( v7 < 0 )
@@ -1186,14 +1192,14 @@ void jkHud_DrawGPU()
         uint32_t tmpInt;
 #ifdef QOL_IMPROVEMENTS
         // Scale crosshair with vertical resolution, not horizontal.
-        v20 = (double)Video_format.height * (0.0015625 / 3.0) * 4.0;
+        v20 = (flex_d_t)Video_format.height * (0.0015625 / 3.0) * 4.0;
 #else
-        v20 = (double)Video_format.width * 0.0015625;
+        v20 = (flex_d_t)Video_format.width * 0.0015625;
 #endif // QOL_IMPROVEMENTS
         v21 = (int32_t)(v20 + v20 + Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].xMax - -0.5);
         v22 = v21;
-        v23 = (int32_t)((double)(unsigned int)Video_format.height * 0.0020833334
-                      + (double)(unsigned int)Video_format.height * 0.0020833334
+        v23 = (int32_t)((flex_d_t)(unsigned int)Video_format.height * 0.0020833334
+                      + (flex_d_t)(unsigned int)Video_format.height * 0.0020833334
                       + Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].yMax
                       - -0.5);
         if ( Video_format.format.bpp == 8 )
@@ -1208,27 +1214,27 @@ void jkHud_DrawGPU()
         //rdPrimit2_DrawClippedLine(Video_pCanvas, v22,       v23 - v24, v22,       v23 - v25, tmpInt, -1);
         //rdPrimit2_DrawClippedLine(Video_pCanvas, v22,       v23 + v25, v22,       v23 + v24, tmpInt, -1);
 
-        float line_len = v24 - v25 + 1;
-        float line_width = jkPlayer_crosshairLineWidth;
+        flex_t line_len = v24 - v25 + 1;
+        flex_t line_width = jkPlayer_crosshairLineWidth;
 
-        rdRect rect1 = {v22 - v24, v23-(line_width/2), line_len, line_width}; // left
-        rdRect rect2 = {v22 + v25, v23-(line_width/2), line_len, line_width}; // right
-        rdRect rect3 = {v22-(line_width/2), v23 - v24, line_width, line_len}; // up
-        rdRect rect4 = {v22-(line_width/2), v23 + v25, line_width, line_len}; // down
+        rdRect rect1 = {(int)(v22 - v24), (int)(v23-(line_width/2)), (int)(line_len), (int)(line_width)}; // left
+        rdRect rect2 = {(int)(v22 + v25), (int)(v23-(line_width/2)), (int)(line_len), (int)(line_width)}; // right
+        rdRect rect3 = {(int)(v22-(line_width/2)), (int)(v23 - v24), (int)(line_width), (int)(line_len)}; // up
+        rdRect rect4 = {(int)(v22-(line_width/2)), (int)(v23 + v25), (int)(line_width), (int)(line_len)}; // down
 
         std3D_DrawUIClearedRect(tmpInt, &rect1);
         std3D_DrawUIClearedRect(tmpInt, &rect2);
         std3D_DrawUIClearedRect(tmpInt, &rect3);
         std3D_DrawUIClearedRect(tmpInt, &rect4);
 
-        //rdRect rect1a = {(double)Video_format.width/2, (double)Video_format.height/2, 20, 20};
+        //rdRect rect1a = {(flex_d_t)Video_format.width/2, (flex_d_t)Video_format.height/2, 20, 20};
         //std3D_DrawUIClearedRect(tmpInt, &rect1a);
     }
 
     rdScreenPoint tmpScreenPt;
     if ( jkHud_bHasTarget && jkHud_pTargetThing && rdPrimit3_GetScreenCoord(&jkHud_pTargetThing->position, &tmpScreenPt) )
     {
-        float valSin, valCos;
+        flex_t valSin, valCos;
         a2 = sithTime_curSeconds * 200.0;
         if ( Video_format.format.is16bit )
         {
@@ -1326,7 +1332,7 @@ void jkHud_DrawGPU()
         {
             a4.width = HUD_SCALED(9);
             a4.x = jkHud_rectViewScores.x + HUD_SCALED(20);
-            a4.height = HUD_SCALED((*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height - 2);
+            a4.height = HUD_SCALED(stdFont_GetHeight(jkHud_pMsgFontSft) - 2);
             v49 = jkStrings_GetUniStringWithFallback("HUD_TEAMSCORESTITLE");
             stdFont_Draw4GPU(
                 jkHud_pMsgFontSft,
@@ -1407,7 +1413,7 @@ LABEL_116:
                             stdFont_Draw1GPU(jkHud_pMsgFontSft, jkHud_rectViewScores.x + HUD_SCALED(90), v53, jkHud_rectViewScores.width, a6, 1, jkPlayer_hudScale);
                             jk_snwprintf(a6, 0x80u, L"%4d", v54->score);
                             stdFont_Draw1GPU(jkHud_pMsgFontSft, jkHud_rectViewScores.x + HUD_SCALED(150), v53, jkHud_rectViewScores.width, a6, 1, jkPlayer_hudScale);
-                            v53 += HUD_SCALED((*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height + jkHud_pMsgFontSft->marginY);
+                            v53 += HUD_SCALED(stdFont_GetHeight(jkHud_pMsgFontSft) + jkHud_pMsgFontSft->marginY);
                             break;
                     }
                 }
@@ -1419,7 +1425,7 @@ LABEL_116:
         {
             a4.x = jkHud_rectViewScores.x;
             a4.width = HUD_SCALED(9);
-            a4.height = HUD_SCALED((*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height - 2);
+            a4.height = HUD_SCALED(stdFont_GetHeight(jkHud_pMsgFontSft) - 2);
             v42 = jkStrings_GetUniStringWithFallback("HUD_PLAYERSCORES");
             stdFont_Draw4GPU(
                 jkHud_pMsgFontSft,
@@ -1460,7 +1466,7 @@ LABEL_116:
                     jk_snwprintf(a6, 0x80u, L"%4d", v46->score);
                     stdFont_Draw1GPU(jkHud_pMsgFontSft, jkHud_rectViewScores.x + HUD_SCALED(190), v44, jkHud_rectViewScores.width, a6, 1, jkPlayer_hudScale);
                     ++v46;
-                    v44 += HUD_SCALED((*jkHud_pMsgFontSft->bitmap->mipSurfaces)->format.height + jkHud_pMsgFontSft->marginY);
+                    v44 += HUD_SCALED(stdFont_GetHeight(jkHud_pMsgFontSft) + jkHud_pMsgFontSft->marginY);
                     if ( ++v45 >= jkHud_numPlayers )
                         break;
                     v43 = jkHud_dword_553ED0;
@@ -1588,6 +1594,9 @@ int jkHud_Chat()
     wchar_t *v3; // [esp-8h] [ebp-108h]
     wchar_t tmp[256]; // [esp+0h] [ebp-100h] BYREF
 
+    // Added: Android/similar
+    stdControl_ShowSystemKeyboard();
+
     jkHud_bChatOpen = 1;
     jkHud_chatStr[0] = 0;
     jkHud_chatStrPos = 0;
@@ -1636,11 +1645,7 @@ void jkHud_SendChat(char a1)
                 sithConsole_TryCommand(jkHud_chatStr);
             }
         }
-        jkHud_chatStrPos = 0;
-        jkHud_bChatOpen = 0;
-        jkDev_sub_41FC90(103);
-        stdControl_Flush();
-        stdControl_bDisableKeyboard = 0;
+        jkHud_idk_time(); // Inlined
     }
     else
     {
@@ -1755,6 +1760,9 @@ void jkHud_idk_time()
     jkDev_sub_41FC90(103);
     stdControl_Flush();
     stdControl_bDisableKeyboard = 0;
+
+    // Added: Android/similar
+    stdControl_HideSystemKeyboard();
 }
 
 int jkHud_chat2()
@@ -1783,11 +1791,11 @@ int jkHud_chat2()
 #ifdef QOL_IMPROVEMENTS
 BOOL jkHud_shouldCrosshairBeShownForWeapon(sithThing *player) {
   int currentWeapon = sithInventory_GetCurWeapon(player);
-  if(currentWeapon == SITHBIN_FISTS) {
+  if (currentWeapon == SITHBIN_FISTS || MOTS_ONLY_FLAG(currentWeapon == SITHBIN_MOTS_FISTS)) {
     return jkPlayer_setCrosshairOnFist;
   }
 
-  if(currentWeapon == SITHBIN_LIGHTSABER){
+  if (currentWeapon == SITHBIN_LIGHTSABER || MOTS_ONLY_FLAG(currentWeapon == SITHBIN_MOTS_LIGHTSABER)){
     return jkPlayer_setCrosshairOnLightsaber;
   }
 

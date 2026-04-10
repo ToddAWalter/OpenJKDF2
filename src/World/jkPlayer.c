@@ -33,6 +33,13 @@
 #include "Platform/std3D.h"
 #include "Main/sithCvar.h"
 
+// DSi has *plenty* of time to read the text.
+#ifdef TARGET_TWL
+#define FAST_MISSION_TEXT_DEFAULT (1)
+#else
+#define FAST_MISSION_TEXT_DEFAULT (0)
+#endif
+
 // DO NOT FORGET TO ADD TO jkPlayer_ResetVars()
 #ifdef QOL_IMPROVEMENTS
 int Window_isHiDpi_tmp = 0;
@@ -44,23 +51,26 @@ int jkPlayer_enableOrigAspect = 0;
 int jkPlayer_enableBloom = 0;
 int jkPlayer_enableSSAO = 0;
 int jkPlayer_fpslimit = 0;
-int jkPlayer_enableVsync = 0;
-float jkPlayer_ssaaMultiple = 1.0;
-float jkPlayer_gamma = 1.0;
+int jkPlayer_enableVsync = 1;
+flex_t jkPlayer_ssaaMultiple = 1.0;
+flex_t jkPlayer_gamma = 1.0;
 int jkPlayer_bEnableJkgm = 1;
 int jkPlayer_bEnableTexturePrecache = 1;
 int jkPlayer_bKeepCorpses = 0;
-int jkPlayer_bFastMissionText = 0;
+int jkPlayer_bFastMissionText = FAST_MISSION_TEXT_DEFAULT;
 int jkPlayer_bUseOldPlayerPhysics = 0;
-float jkPlayer_hudScale = 2.0;
-float jkPlayer_crosshairLineWidth = 1.0;
-float jkPlayer_crosshairScale = 1.0;
-float jkPlayer_canonicalCogTickrate = CANONICAL_COG_TICKRATE;
-float jkPlayer_canonicalPhysTickrate = CANONICAL_PHYS_TICKRATE;
+flex_t jkPlayer_hudScale = 2.0;
+flex_t jkPlayer_crosshairLineWidth = 1.0;
+flex_t jkPlayer_crosshairScale = 1.0;
+flex_t jkPlayer_canonicalCogTickrate = CANONICAL_COG_TICKRATE;
+flex_t jkPlayer_canonicalPhysTickrate = CANONICAL_PHYS_TICKRATE;
 
 int jkPlayer_setCrosshairOnLightsaber = 1;
 int jkPlayer_setCrosshairOnFist = 1;
+int jkPlayer_bDisableWeaponWaggle = 0;
 int jkPlayer_bHasLoadedSettingsOnce = 0;
+int jkPlayer_bEnableEmissiveTextures = 1;
+int jkPlayer_bEnableClassicLighting = 0;
 #endif
 
 #ifdef FIXED_TIMESTEP_PHYS
@@ -71,7 +81,7 @@ int jkPlayer_bJankyPhysics = 0;
 jkPlayerInfo jkPlayer_aMotsInfos[NUM_JKPLAYER_THINGS] = {0};
 jkBubbleInfo jkPlayer_aBubbleInfo[NUM_JKPLAYER_THINGS] = {0};
 int jkPlayer_personality = 0;
-float jkPlayer_aMultiParams[0x100];
+flex_t jkPlayer_aMultiParams[0x100];
 #endif
 
 int jkPlayer_aMotsFpBins[74] =
@@ -165,24 +175,31 @@ void jkPlayer_StartupVars()
     sithCvar_RegisterBool("r_enableBloom",              0,                          &jkPlayer_enableBloom,              CVARFLAG_LOCAL);
     sithCvar_RegisterBool("r_enableSSAO",               0,                          &jkPlayer_enableSSAO,               CVARFLAG_LOCAL);
     sithCvar_RegisterInt("r_fpslimit",                  0,                          &jkPlayer_fpslimit,                 CVARFLAG_LOCAL);
-    sithCvar_RegisterBool("r_enableVsync",              0,                          &jkPlayer_enableVsync,              CVARFLAG_LOCAL);
+    sithCvar_RegisterBool("r_enableVsync",              1,                          &jkPlayer_enableVsync,              CVARFLAG_LOCAL);
     sithCvar_RegisterFlex("r_ssaaMultiple",             1.0,                        &jkPlayer_ssaaMultiple,             CVARFLAG_LOCAL);
     sithCvar_RegisterFlex("r_gamma",                    1.0,                        &jkPlayer_gamma,                    CVARFLAG_LOCAL);
     sithCvar_RegisterBool("r_bEnableJkgm",              1,                          &jkPlayer_bEnableJkgm,              CVARFLAG_LOCAL|CVARFLAG_READONLY);
     sithCvar_RegisterBool("r_bEnableTexturePrecache",   1,                          &jkPlayer_bEnableTexturePrecache,   CVARFLAG_LOCAL|CVARFLAG_READONLY);
     sithCvar_RegisterBool("g_bKeepCorpses",             0,                          &jkPlayer_bKeepCorpses,             CVARFLAG_LOCAL);
-    sithCvar_RegisterBool("menu_bFastMissionText",      0,                          &jkPlayer_bFastMissionText,         CVARFLAG_LOCAL);
+    sithCvar_RegisterBool("menu_bFastMissionText",      FAST_MISSION_TEXT_DEFAULT,  &jkPlayer_bFastMissionText,         CVARFLAG_LOCAL);
     sithCvar_RegisterBool("g_bUseOldPlayerPhysics",     0,                          &jkPlayer_bUseOldPlayerPhysics,     CVARFLAG_LOCAL);
     sithCvar_RegisterFlex("hud_scale",                  2.0,                        &jkPlayer_hudScale,                 CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
     sithCvar_RegisterFlex("hud_crosshairLineWidth",     1.0,                        &jkPlayer_crosshairLineWidth,       CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
     sithCvar_RegisterFlex("hud_crosshairScale",         1.0,                        &jkPlayer_crosshairScale,           CVARFLAG_LOCAL|CVARFLAG_RESETHUD);
     sithCvar_RegisterBool("hud_setCrosshairOnLightsaber", 1,                        &jkPlayer_setCrosshairOnLightsaber, CVARFLAG_LOCAL);
     sithCvar_RegisterBool("hud_setCrosshairOnFist",     1,                          &jkPlayer_setCrosshairOnFist,       CVARFLAG_LOCAL);
+    sithCvar_RegisterBool("hud_disableWeaponWaggle",    0,                          &jkPlayer_bDisableWeaponWaggle,     CVARFLAG_LOCAL);
     sithCvar_RegisterFlex("g_canonicalCogTickrate",     CANONICAL_COG_TICKRATE,     &jkPlayer_canonicalCogTickrate,     CVARFLAG_LOCAL);
     sithCvar_RegisterFlex("g_canonicalPhysTickrate",    CANONICAL_PHYS_TICKRATE,    &jkPlayer_canonicalPhysTickrate,    CVARFLAG_LOCAL);
 
     sithCvar_RegisterBool("r_hidpi",                     0,                         &Window_isHiDpi_tmp,                CVARFLAG_LOCAL|CVARFLAG_READONLY);
     sithCvar_RegisterBool("r_fullscreen",                0,                         &Window_isFullscreen_tmp,           CVARFLAG_LOCAL|CVARFLAG_READONLY);
+
+    // TODO: port to SDL
+#ifdef TARGET_TWL
+    sithCvar_RegisterBool("r_emissiveTextures",          0,                         &jkPlayer_bEnableEmissiveTextures,  CVARFLAG_LOCAL|CVARFLAG_READONLY);
+    sithCvar_RegisterBool("r_classicLighting",           0,                         &jkPlayer_bEnableClassicLighting,   CVARFLAG_LOCAL|CVARFLAG_READONLY);
+#endif
 
 #ifdef FIXED_TIMESTEP_PHYS
     sithCvar_RegisterBool("g_bJankyPhysics",             0,                         &jkPlayer_bJankyPhysics,            CVARFLAG_LOCAL);
@@ -202,7 +219,7 @@ void jkPlayer_ResetVars()
     jkPlayer_enableBloom = 0;
     jkPlayer_enableSSAO = 0;
     jkPlayer_fpslimit = 0;
-    jkPlayer_enableVsync = 0;
+    jkPlayer_enableVsync = 1;
     jkPlayer_ssaaMultiple = 1.0;
     jkPlayer_gamma = 1.0;
     jkPlayer_bEnableJkgm = 1;
@@ -218,6 +235,7 @@ void jkPlayer_ResetVars()
 
     jkPlayer_setCrosshairOnLightsaber = 1;
     jkPlayer_setCrosshairOnFist = 1;
+    jkPlayer_bDisableWeaponWaggle = 0;
 
     jkPlayer_bHasLoadedSettingsOnce = 0;
 #endif
@@ -238,7 +256,7 @@ int jkPlayer_LoadAutosave()
 {
     char tmp[128];
 
-    jkPlayer_dword_525470 = 1;
+    jkPlayer_bLoadingSomething = 1;
     stdString_snprintf(tmp, 128, "%s%s", "_JKAUTO_", sithWorld_pCurrentWorld->map_jkl_fname);
     stdFnames_ChangeExt(tmp, "jks");
     return sithGamesave_Load(tmp, 0, 0);
@@ -246,7 +264,7 @@ int jkPlayer_LoadAutosave()
 
 int jkPlayer_LoadSave(char *path)
 {
-    jkPlayer_dword_525470 = 1;
+    jkPlayer_bLoadingSomething = 1;
     return sithGamesave_Load(path, 0, 1);
 }
 
@@ -510,14 +528,17 @@ void jkPlayer_WriteConf(wchar_t *name)
     sithCvar_SaveGlobals();
 #endif
 
-    if (!name[0]) return; // Added
+    if (!name || !name[0]) {
+        printf("jkPlayer_WriteConf NULL name?\n");
+        return; // Added
+    }
 
     stdString_WcharToChar(nameTmp, name, 31);
     nameTmp[31] = 0;
     stdFnames_MakePath3(ext_fpath, 256, "player", nameTmp, "openjkdf2.json"); // Added
-    stdFnames_MakePath3(ext_fpath_cvars, 256, "player", nameTmp, "openjkdf2_cvars.json"); // Added
+    stdFnames_MakePath3(ext_fpath_cvars, 256, "player", nameTmp, SITHCVAR_FNAME); // Added
     stdString_snprintf(fpath, 128, "player\\%s\\%s.plr", nameTmp, nameTmp);
-    if ( stdConffile_OpenWrite(fpath) )
+    if ( stdConffile_OpenWriteBypass(fpath) )
     {
         stdConffile_Printf("version %d\n", 1);
         stdConffile_Printf("diff %d\n", jkPlayer_setDiff);
@@ -561,6 +582,7 @@ void jkPlayer_WriteConf(wchar_t *name)
 
         stdJSON_SaveBool(ext_fpath, "setCrosshairOnLightsaber", jkPlayer_setCrosshairOnLightsaber);
         stdJSON_SaveBool(ext_fpath, "setCrosshairOnFist", jkPlayer_setCrosshairOnFist);
+        stdJSON_SaveBool(ext_fpath, "bDisableWeaponWaggle", jkPlayer_bDisableWeaponWaggle);
 #endif
 #ifdef FIXED_TIMESTEP_PHYS
         stdJSON_SaveBool(ext_fpath, "bJankyPhysics", jkPlayer_bJankyPhysics);
@@ -579,6 +601,7 @@ void jkPlayer_WriteConf(wchar_t *name)
 #ifdef QOL_IMPROVEMENTS
 void jkPlayer_ParseLegacyExt()
 {
+    flex32_t ftmp;
     if (stdConffile_ReadLine())
     {
         _sscanf(stdConffile_aLine, "fov %d", &jkPlayer_fov);
@@ -637,8 +660,10 @@ void jkPlayer_ParseLegacyExt()
 
     if (stdConffile_ReadLine())
     {
-        if (_sscanf(stdConffile_aLine, "ssaamultiple %f", &jkPlayer_ssaaMultiple) != 1)
+        if (_sscanf(stdConffile_aLine, "ssaamultiple %f", &ftmp) != 1)
             jkPlayer_ssaaMultiple = 1.0;
+        else
+            jkPlayer_ssaaMultiple = ftmp;
     }
 
     if (stdConffile_ReadLine())
@@ -649,8 +674,10 @@ void jkPlayer_ParseLegacyExt()
 
     if (stdConffile_ReadLine())
     {
-        if (_sscanf(stdConffile_aLine, "gamma %f", &jkPlayer_gamma) != 1)
+        if (_sscanf(stdConffile_aLine, "gamma %f", &ftmp) != 1)
             jkPlayer_gamma = 1.0;
+        else
+            jkPlayer_gamma = ftmp;
     }
 }
 #endif
@@ -672,9 +699,9 @@ int jkPlayer_ReadConf(wchar_t *name)
     _wcsncpy(jkPlayer_playerShortName, name, 0x1Fu);
     jkPlayer_playerShortName[31] = 0;
     stdFnames_MakePath3(ext_fpath, 256, "player", v6, "openjkdf2.json");
-    stdFnames_MakePath3(ext_fpath_cvars, 256, "player", v6, "openjkdf2_cvars.json"); // Added
+    stdFnames_MakePath3(ext_fpath_cvars, 256, "player", v6, SITHCVAR_FNAME); // Added
     stdString_snprintf(fpath, 256, "player\\%s\\%s.plr", v6, v6); // Added: sprintf -> snprintf
-    if (!stdConffile_OpenRead(fpath))
+    if (!stdConffile_OpenReadBypass(fpath))
         return 0;
 
     if ( stdConffile_ReadLine() && _sscanf(stdConffile_aLine, "version %d", &version) == 1 && version == 1 && stdConffile_ReadLine() )
@@ -692,6 +719,11 @@ int jkPlayer_ReadConf(wchar_t *name)
         sithWeapon_ReadConf();
         //jk_printf("%s\n", stdConffile_aLine);
         sithControl_ReadConf();
+
+        // HACK
+#ifdef TARGET_TWL
+        sithControl_InputInit();
+#endif
         if ( stdConffile_ReadArgs() )
         {
             if ( stdConffile_entry.numArgs >= 1u
@@ -745,7 +777,7 @@ int jkPlayer_ReadConf(wchar_t *name)
 
         jkPlayer_setCrosshairOnLightsaber = stdJSON_GetBool(ext_fpath, "setCrosshairOnLightsaber", jkPlayer_setCrosshairOnLightsaber);
         jkPlayer_setCrosshairOnFist = stdJSON_GetBool(ext_fpath, "setCrosshairOnFist", jkPlayer_setCrosshairOnFist);
-
+        jkPlayer_bDisableWeaponWaggle = stdJSON_GetBool(ext_fpath, "bDisableWeaponWaggle", jkPlayer_bDisableWeaponWaggle);
 #endif
 #ifdef FIXED_TIMESTEP_PHYS
         jkPlayer_bJankyPhysics = stdJSON_GetBool(ext_fpath, "bJankyPhysics", jkPlayer_bJankyPhysics);
@@ -802,6 +834,7 @@ void jkPlayer_SetPovModel(jkPlayerInfo *info, rdModel3 *model)
     }
 }
 
+int jkPlayer_checkPov = 0;
 void jkPlayer_DrawPov()
 {
     rdVector3 trans;
@@ -821,9 +854,14 @@ void jkPlayer_DrawPov()
 
         // TODO: I think this explains some weird duplication
 #ifndef QOL_IMPROVEMENTS
-        float waggleAmt = (fabs(player->waggle) > 0.02 ? 0.02 : fabs(player->waggle)) * jkPlayer_waggleMag;
+        flex_t waggleAmt = (stdMath_Fabs(player->waggle) > 0.02 ? 0.02 : stdMath_Fabs(player->waggle)) * jkPlayer_waggleMag;
 #else
-        float waggleAmt = (fabs(player->waggle) > sithTime_deltaSeconds ? sithTime_deltaSeconds : fabs(player->waggle)) * jkPlayer_waggleMag; // scale animation to be in line w/ 50fps og limit
+        // scale animation to be in line w/ 25fps (presumed 'mastering' FPS of whoever was coding the waggle)
+        flex_t waggleAmt = (stdMath_Fabs(player->waggle) > 0.02 * (sithTime_deltaSeconds / (1.0/25)) ? 0.02 * (sithTime_deltaSeconds / (1.0/25)) : stdMath_Fabs(player->waggle)) * jkPlayer_waggleMag;
+
+        if (jkPlayer_bDisableWeaponWaggle) {
+            waggleAmt = 0.0;
+        }
 #endif
         if ( waggleAmt == 0.0 )
             jkPlayer_waggleAngle = 0.0;
@@ -831,17 +869,22 @@ void jkPlayer_DrawPov()
             jkPlayer_waggleAngle = waggleAmt + jkPlayer_waggleAngle;
 
         // TODO is this a macro/func?
-        float angleSin, angleCos;
+        flex_t angleSin, angleCos;
         stdMath_SinCos(jkPlayer_waggleAngle, &angleSin, &angleCos);
-        float velNorm = rdVector_Len3(&player->physicsParams.vel) / player->physicsParams.maxVel; // MOTS altered: uses 1.538462 for something (performance hack?)
+        flex_t velNorm = rdVector_Len3(&player->physicsParams.vel) / player->physicsParams.maxVel; // MOTS altered: uses 1.538462 for something (performance hack?)
         if (angleCos > 0) // verify?
             angleCos = -angleCos;
+#ifdef QOL_IMPROVEMENTS
+        if (jkPlayer_bDisableWeaponWaggle) {
+            velNorm *= 0.5;
+        }
+#endif
         jkSaber_rotateVec.x = angleCos * jkPlayer_waggleVec.x * velNorm;
         jkSaber_rotateVec.y = angleSin * jkPlayer_waggleVec.y * velNorm;
         jkSaber_rotateVec.z = angleSin * jkPlayer_waggleVec.z * velNorm;
         rdMatrix_BuildRotate34(&jkSaber_rotateMat, &jkSaber_rotateVec);
 
-#ifdef SDL2_RENDER
+#if defined(SDL2_RENDER) || defined(TARGET_TWL)
         // Force weapon to draw in front of scene
         std3D_ClearZBuffer();
         rdSetZBufferMethod(RD_ZBUFFER_READ_WRITE);
@@ -854,32 +897,36 @@ void jkPlayer_DrawPov()
         rdSetOcclusionMethod(0);
 #endif
 
-        float ambLight = sithCamera_currentCamera->sector->extraLight + sithCamera_currentCamera->sector->ambientLight;
-        if ( ambLight < 0.0 )
-        {
-            ambLight = 0.0;
-        }
-        else if ( ambLight > 1.0 )
-        {
-            ambLight = 1.0;
-        }
+        flex_t ambLight = stdMath_Clamp(sithCamera_currentCamera->sector->extraLight + sithCamera_currentCamera->sector->ambientLight, 0.0, 1.0);
 
         rdCamera_SetAmbientLight(&sithCamera_currentCamera->rdCam, ambLight);
         rdColormap_SetCurrent(sithCamera_currentCamera->sector->colormap);
 
         rdMatrix_Copy34(&viewMat, &sithCamera_currentCamera->viewMat);
         rdVector_Copy3(&trans, &playerThings[playerThingIdx].actorThing->actorParams.eyeOffset);
+        //printf("%f %f %f\n", (flex32_t)playerThings[playerThingIdx].actorThing->actorParams.eyeOffset.x, (flex32_t)playerThings[playerThingIdx].actorThing->actorParams.eyeOffset.y, (flex32_t)playerThings[playerThingIdx].actorThing->actorParams.eyeOffset.z);
 #ifdef QOL_IMPROVEMENTS
         // Shift gun down slightly at higher aspect ratios
         // TODO just make a cvar-alike for this
         //trans.z += 0.007 * (1.0 / sithCamera_currentCamera->rdCam.screenAspectRatio);
 #endif
+        //printf("%f %f %f\n", (flex32_t)viewMat.scale.x, (flex32_t)viewMat.scale.y, (flex32_t)viewMat.scale.z);
+
+        // Shift gun up slightly
+#ifdef TARGET_TWL
+        //trans.y -= 0.037; //znear 16
+        //trans.z += 0.013; //znear 16
+
+        //trans.x += 0.009; //30deg fov
+        //trans.z -= 0.017; //30deg fov
+#endif
+
         rdVector_Neg3Acc(&trans);
         rdMatrix_PreTranslate34(&viewMat, &trans);
         rdMatrix_PreMultiply34(&viewMat, &jkSaber_rotateMat);
 
         // Moved: see below.
-#ifndef SDL2_RENDER
+#if !(defined(SDL2_RENDER) || defined(TARGET_TWL))
         // Render saber if applicable
         if (playerThings[playerThingIdx].actorThing->jkFlags & JKFLAG_SABERON)
         {
@@ -887,18 +934,30 @@ void jkPlayer_DrawPov()
         }
 #endif
         
+        //printf("pov in\n");
+        //jkPlayer_checkPov = 1;
         rdThing_Draw(&playerThings[playerThingIdx].povModel, &viewMat);
+        //jkPlayer_checkPov = 0;
+        //printf("pov done\n");
+
+        // DSi doesn't really have Z buffer stuff so just batch everything
+#ifndef TARGET_TWL
         rdCache_Flush();
+#endif
 
         // Added: we want the polyline to render in draw order so the spheres don't clip, 
         // but we want the POV model to be aware of the depths still.
-#ifdef SDL2_RENDER
+#if defined(SDL2_RENDER) || defined(TARGET_TWL)
         if (playerThings[playerThingIdx].actorThing->jkFlags & JKFLAG_SABERON)
         {
             rdSetZBufferMethod(RD_ZBUFFER_READ_NOWRITE);
             jkSaber_Draw(&viewMat);
         }
+
+
+#ifndef TARGET_TWL
         rdCache_Flush(); // Added: force polyline to be underneath model
+#endif
         rdSetZBufferMethod(RD_ZBUFFER_READ_WRITE);
 #endif
     }
@@ -954,9 +1013,16 @@ void jkPlayer_renderSaberWeaponMesh(sithThing *thing)
         if ( sithPlayer_pLocalPlayer->iteminfo[SITHBIN_F_SEEING].state & ITEMSTATE_ACTIVATE )
         {
             rdGeoMode_t oldGeoMode = thing->rdthing.curGeoMode;
+#ifdef TARGET_TWL
+            // Added: Don't draw them twice wtf
+            if (thing->rdthing.curGeoMode != thing->rdthing.desiredGeoMode) {
+#endif
             thing->rdthing.curGeoMode = thing->rdthing.desiredGeoMode;
             rdVector_Copy3(&thing->lookOrientation.scale, &thing->position);
             rdThing_Draw(&thing->rdthing, &thing->lookOrientation);
+#ifdef TARGET_TWL
+            }
+#endif
 
             thing->lookOrientation.scale.x = 0.0;
             thing->lookOrientation.scale.y = 0.0;
@@ -1005,10 +1071,10 @@ void jkPlayer_renderSaberTwinkle(sithThing *player)
         playerInfo->bRenderTwinkleParticle = 1;
         
         //TODO: macro bug?
-        if ((_frand() * (double)playerInfo->twinkleSpawnRate) <= playerInfo->maxTwinkles )
+        if ((_frand() * (flex_d_t)playerInfo->twinkleSpawnRate) <= playerInfo->maxTwinkles )
             playerInfo->numTwinkles = playerInfo->maxTwinkles;
         else
-            playerInfo->numTwinkles = (int)(_frand() * (double)playerInfo->twinkleSpawnRate);
+            playerInfo->numTwinkles = (int)(_frand() * (flex_d_t)playerInfo->twinkleSpawnRate);
 
         playerInfo->nextTwinkleRandMs += 2000;
     }
@@ -1041,7 +1107,7 @@ void jkPlayer_renderSaberTwinkle(sithThing *player)
     }
 }
 
-void jkPlayer_SetWaggle(sithThing *player, rdVector3 *waggleVec, float waggleMag)
+void jkPlayer_SetWaggle(sithThing *player, rdVector3 *waggleVec, flex_t waggleMag)
 {
     if ( player == playerThings[playerThingIdx].actorThing )
     {
@@ -1155,7 +1221,7 @@ int jkPlayer_GetMpcInfo(wchar_t *name, char *model, char *soundclass, char *side
 
 void jkPlayer_SetChoice(signed int amt)
 {
-    sithPlayer_SetBinAmt(SITHBIN_CHOICE, (float)amt);
+    sithPlayer_SetBinAmt(SITHBIN_CHOICE, (flex_t)amt); // FLEXTODO
 }
 
 int jkPlayer_GetChoice()
@@ -1164,19 +1230,19 @@ int jkPlayer_GetChoice()
 }
 
 //MOTS altered
-float jkPlayer_CalcAlignment(int isMp)
+flex_t jkPlayer_CalcAlignment(int isMp)
 {
     if (jkPlayer_GetChoice() == 1)
         return 100.0;
     if (jkPlayer_GetChoice() == 2)
         return -100.0;
 
-    float alignment = jkPlayer_CalcStarsAlign();
+    flex_t alignment = jkPlayer_CalcStarsAlign();
 
     if (!isMp)
     {
-        float pedsKilled = sithPlayer_GetBinAmt(SITHBIN_PEDS_KILLED);
-        float totalPeds = sithPlayer_GetBinAmt(SITHBIN_PEDS_TOTAL);
+        flex_t pedsKilled = sithPlayer_GetBinAmt(SITHBIN_PEDS_KILLED);
+        flex_t totalPeds = sithPlayer_GetBinAmt(SITHBIN_PEDS_TOTAL);
 
         if (totalPeds <= 0.0) // Prevent div 0
             alignment -= -20.0;
@@ -1199,7 +1265,7 @@ float jkPlayer_CalcAlignment(int isMp)
 
 void jkPlayer_MpcInitBins(sithPlayerInfo* unk)
 {
-    float alignment; // [esp+8h] [ebp-E8h]
+    flex_t alignment; // [esp+8h] [ebp-E8h]
     jkPlayerMpcInfo info; // [esp+Ch] [ebp-E4h] BYREF
 
     jkPlayer_MPCParse(&info, unk, jkPlayer_playerShortName, jkPlayer_name, 1);
@@ -1219,7 +1285,7 @@ void jkPlayer_MpcInitBins(sithPlayerInfo* unk)
 int jkPlayer_MPCParse(jkPlayerMpcInfo *info, sithPlayerInfo* unk, wchar_t *fname, wchar_t *name, int hasBins)
 {
     int v6; // edi
-    float a2; // [esp+Ch] [ebp-CCh] BYREF
+    flex_t a2; // [esp+Ch] [ebp-CCh] BYREF
     int v8; // [esp+10h] [ebp-C8h] BYREF
     char v9; // [esp+14h] [ebp-C4h] BYREF
     char a1a[32]; // [esp+18h] [ebp-C0h] BYREF
@@ -1236,7 +1302,7 @@ int jkPlayer_MPCParse(jkPlayerMpcInfo *info, sithPlayerInfo* unk, wchar_t *fname
     info->name[31] = 0;
     _sprintf(jkl_fname, "player\\%s\\%s.mpc", a1a, v11);
 
-    if (!stdConffile_OpenRead(jkl_fname))
+    if (!stdConffile_OpenReadBypass(jkl_fname))
         return 0;
 
     if ( stdConffile_ReadLine()
@@ -1304,7 +1370,7 @@ int jkPlayer_MPCWrite(sithPlayerInfo* unk, wchar_t *mpcName, wchar_t *playerName
     mpcNameChar[31] = 0;
     stdString_snprintf(fpath, 128, "player\\%s\\%s.mpc", mpcNameChar, playerNameChar);
 
-    if (!stdConffile_OpenWrite(fpath))
+    if (!stdConffile_OpenWriteBypass(fpath))
         return 0;
 
     stdConffile_Printf("version %d\n", 1);
@@ -1328,8 +1394,8 @@ int jkPlayer_MPCWrite(sithPlayerInfo* unk, wchar_t *mpcName, wchar_t *playerName
 int jkPlayer_MPCBinWrite()
 {
     int v0; // esi
-    double v1; // st7
-    double v2; // st7
+    flex_d_t v1; // st7
+    flex_d_t v2; // st7
 
     if (!stdConffile_Printf("\nforcepowers:\n") )
         return 0;
@@ -1352,7 +1418,7 @@ int jkPlayer_MPCBinWrite()
 // MOTS added: weird xor crypt
 int jkPlayer_MPCBinRead()
 {
-    float a2;
+    flex32_t a2;
     int v3;
 
     stdConffile_ReadLine();
@@ -1392,37 +1458,35 @@ void jkPlayer_InitForceBins()
 
 int jkPlayer_GetAlignment()
 {
-    int v0; // edi
-    int v1; // ebx
-    float v4;
+    flex_t v4;
 
-    v0 = 0;
-    v1 = 0;
+    int bHasDarkPowers = 0;
     for (int i = SITHBIN_F_THROW; i <= SITHBIN_F_DESTRUCTION; ++i )
     {
         if ( sithPlayer_GetBinAmt(i) > 0.0 )
-            v0 = 1;
+            bHasDarkPowers = 1;
     }
 
+    int bHasLightPowers = 0;
     for (int j = SITHBIN_F_HEALING; j <= SITHBIN_F_ABSORB; ++j )
     {
         if ( sithPlayer_GetBinAmt(j) > 0.0 )
-            v1 = 1;
+            bHasLightPowers = 1;
     }
 
-    if (!v0 && !v1)
+    if (!bHasDarkPowers && !bHasLightPowers)
         return 0;
 
-    if ( !v1 )
+    if ( !bHasLightPowers )
     {
         v4 = jkPlayer_CalcAlignment(0); // not mp
         if ( v4 < 0.0 )
             return 2;
 
-        if ( !v1 )
+        if ( !bHasLightPowers )
             return 0;
     }
-    if ( !v0 )
+    if ( !bHasDarkPowers )
     {
         if ( (unsigned int)(__int64)sithPlayer_GetBinAmt(SITHBIN_CHOICE) == 1 )
         {
@@ -1538,7 +1602,7 @@ LABEL_8:
         stdString_WcharToChar(v13, jkPlayer_playerShortName, 31);
         v13[31] = 0;
         stdString_snprintf(v14, 128, "player\\%s\\%s.plr", v13, v13);
-        if ( stdConffile_OpenWrite(v14) )
+        if ( stdConffile_OpenWriteBypass(v14) )
         {
             stdConffile_Printf("version %d\n", 1);
             stdConffile_Printf("diff %d\n", jkPlayer_setDiff);
@@ -1659,20 +1723,20 @@ void jkPlayer_FixStars()
     __int64 v14; // rax
     __int64 v15; // rax
     __int64 v16; // rax
-    float a2; // [esp+0h] [ebp-14h]
-    float a2a; // [esp+0h] [ebp-14h]
-    float a2b; // [esp+0h] [ebp-14h]
-    float a2c; // [esp+0h] [ebp-14h]
-    float a2d; // [esp+0h] [ebp-14h]
-    float a2e; // [esp+0h] [ebp-14h]
-    float a2f; // [esp+0h] [ebp-14h]
-    float a2g; // [esp+0h] [ebp-14h]
-    float a2h; // [esp+0h] [ebp-14h]
-    float a2i; // [esp+0h] [ebp-14h]
-    float a2j; // [esp+0h] [ebp-14h]
-    float a2k; // [esp+0h] [ebp-14h]
-    float a2l; // [esp+0h] [ebp-14h]
-    float a2m; // [esp+0h] [ebp-14h]
+    flex_t a2; // [esp+0h] [ebp-14h]
+    flex_t a2a; // [esp+0h] [ebp-14h]
+    flex_t a2b; // [esp+0h] [ebp-14h]
+    flex_t a2c; // [esp+0h] [ebp-14h]
+    flex_t a2d; // [esp+0h] [ebp-14h]
+    flex_t a2e; // [esp+0h] [ebp-14h]
+    flex_t a2f; // [esp+0h] [ebp-14h]
+    flex_t a2g; // [esp+0h] [ebp-14h]
+    flex_t a2h; // [esp+0h] [ebp-14h]
+    flex_t a2i; // [esp+0h] [ebp-14h]
+    flex_t a2j; // [esp+0h] [ebp-14h]
+    flex_t a2k; // [esp+0h] [ebp-14h]
+    flex_t a2l; // [esp+0h] [ebp-14h]
+    flex_t a2m; // [esp+0h] [ebp-14h]
 
     // MOTS TODO
     if (Main_bMotsCompat) return;
@@ -1686,7 +1750,7 @@ void jkPlayer_FixStars()
     }
     if ( v0 > v1 )
     {
-        a2 = (float)(v0 - v1);
+        a2 = (flex_t)(v0 - v1); // FLEXTODO
         sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, a2);
         return;
     }
@@ -1697,90 +1761,91 @@ void jkPlayer_FixStars()
         {
             while ( 1 )
             {
+                // TODO un-inline whatever this is
                 v4 = (__int64)sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
                 if ( (int)v4 > 0 )
                     break;
                 v5 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_DESTRUCTION);
                 if ( (int)v5 > 0 )
                 {
-                    a2b = (float)(v5 - 1);
+                    a2b = (flex_t)(v5 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_DESTRUCTION, a2b);
                     goto LABEL_37;
                 }
                 v6 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_ABSORB);
                 if ( (int)v6 > 0 )
                 {
-                    a2c = (float)(v6 - 1);
+                    a2c = (flex_t)(v6 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_ABSORB, a2c);
                     goto LABEL_37;
                 }
                 v7 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_LIGHTNING);
                 if ( (int)v7 > 0 )
                 {
-                    a2d = (float)(v7 - 1);
+                    a2d = (flex_t)(v7 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_LIGHTNING, a2d);
                     goto LABEL_37;
                 }
                 v8 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_BLINDING);
                 if ( (int)v8 > 0 )
                 {
-                    a2e = (float)(v8 - 1);
+                    a2e = (flex_t)(v8 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_BLINDING, a2e);
                     goto LABEL_37;
                 }
                 v9 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_GRIP);
                 if ( (int)v9 > 0 )
                 {
-                    a2f = (float)(v9 - 1);
+                    a2f = (flex_t)(v9 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_GRIP, a2f);
                     goto LABEL_37;
                 }
                 v10 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_PERSUASION);
                 if ( (int)v10 > 0 )
                 {
-                    a2g = (float)(v10 - 1);
+                    a2g = (flex_t)(v10 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_PERSUASION, a2g);
                     goto LABEL_37;
                 }
                 v11 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_THROW);
                 if ( (int)v11 > 0 )
                 {
-                    a2h = (float)(v11 - 1);
+                    a2h = (flex_t)(v11 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_THROW, a2h);
                     goto LABEL_37;
                 }
                 v12 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_HEALING);
                 if ( (int)v12 > 0 )
                 {
-                    a2i = (float)(v12 - 1);
+                    a2i = (flex_t)(v12 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_HEALING, a2i);
                     goto LABEL_37;
                 }
                 v13 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_PULL);
                 if ( (int)v13 > 0 )
                 {
-                    a2j = (float)(v13 - 1);
+                    a2j = (flex_t)(v13 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_PULL, a2j);
                     goto LABEL_37;
                 }
                 v14 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_SEEING);
                 if ( (int)v14 > 0 )
                 {
-                    a2k = (float)(v14 - 1);
+                    a2k = (flex_t)(v14 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_SEEING, a2k);
                     goto LABEL_37;
                 }
                 v15 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_SPEED);
                 if ( (int)v15 > 0 )
                 {
-                    a2l = (float)(v15 - 1);
+                    a2l = (flex_t)(v15 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_SPEED, a2l);
                     goto LABEL_37;
                 }
                 v16 = (__int64)sithPlayer_GetBinAmt(SITHBIN_F_JUMP);
                 if ( (int)v16 > 0 )
                 {
-                    a2m = (float)(v16 - 1);
+                    a2m = (flex_t)(v16 - 1); // FLEXTODO
                     sithPlayer_SetBinAmt(SITHBIN_F_JUMP, a2m);
                     goto LABEL_37;
                 }
@@ -1788,7 +1853,7 @@ LABEL_38:
                 if ( v3 <= 0 )
                     return;
             }
-            a2a = (float)(v4 - 1);
+            a2a = (flex_t)(v4 - 1); // FLEXTODO
             sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, a2a);
 LABEL_37:
             --v3;
@@ -1797,22 +1862,22 @@ LABEL_37:
     }
 }
 
-float jkPlayer_CalcStarsAlign()
+flex_t jkPlayer_CalcStarsAlign()
 {
-    float alignment = 0.0;
+    flex_t alignment = 0.0;
 
     // MOTS: Return 0.0 always
     if (Main_bMotsCompat) return 0.0;
 
     for (int i = SITHBIN_F_THROW; i <= SITHBIN_F_DESTRUCTION; ++i )
     {
-        float amt = sithPlayer_GetBinAmt(i);
+        flex_t amt = sithPlayer_GetBinAmt(i);
         alignment -= amt * 6.25;
     }
     
     for (int j = SITHBIN_F_HEALING; j <= SITHBIN_F_ABSORB; ++j )
     {
-        float amt = sithPlayer_GetBinAmt(j);
+        flex_t amt = sithPlayer_GetBinAmt(j);
         alignment -= amt * -6.25;
     }
     
@@ -1824,41 +1889,44 @@ int jkPlayer_SetProtectionDeadlysight()
     // MOTS TODO
     if (Main_bMotsCompat) return 0;
 
-    int hasNoNeutral = 1;
     int rank = jkPlayer_GetJediRank();
 
     int hasNoDarkside = 1;
     for (int i = SITHBIN_F_THROW; i <= SITHBIN_F_DESTRUCTION; ++i )
     {
-        if ( sithPlayer_GetBinAmt(i) > 0.0 )
+        if (sithPlayer_GetBinAmt(i) > 0.0)
             hasNoDarkside = 0;
     }
 
     int hasFullDarkside = 1;
     for (int j = SITHBIN_F_THROW; j <= SITHBIN_F_DESTRUCTION; ++j )
     {
-        if ( sithPlayer_GetBinAmt(j) < 4.0 )
+        if (sithPlayer_GetBinAmt(j) < 4.0)
             hasFullDarkside = 0;
     }
 
     int hasNoLightside = 1;
     for (int k = SITHBIN_F_HEALING; k <= SITHBIN_F_ABSORB; ++k )
     {
-        if ( sithPlayer_GetBinAmt(k) > 0.0 )
+        if (sithPlayer_GetBinAmt(k) > 0.0)
             hasNoLightside = 0;
     }
 
     int hasFullLightside = 1;
     for (int l = SITHBIN_F_HEALING; l <= SITHBIN_F_ABSORB; ++l )
     {
-        if ( sithPlayer_GetBinAmt(l) < 4.0 )
+        if (sithPlayer_GetBinAmt(l) < 4.0)
             hasFullLightside = 0;
     }
+
+    int hasNoNeutral = 1;
     for (int m = SITHBIN_FP_START; m <= SITHBIN_F_PULL; ++m )
     {
-        if ( m != SITHBIN_JEDI_RANK && sithPlayer_GetBinAmt(m) > 0.0 )
+        if (m == SITHBIN_JEDI_RANK) continue;
+        if (sithPlayer_GetBinAmt(m) > 0.0)
             hasNoNeutral = 0;
     }
+
     if (rank == 8)
     {
         if ( hasFullLightside && hasNoDarkside && hasNoNeutral )
@@ -1890,7 +1958,7 @@ void jkPlayer_DisallowOtherSide(int rank)
     // MOTS TODO
     if (Main_bMotsCompat) return;
 
-    float align = jkPlayer_CalcStarsAlign();
+    flex_t align = jkPlayer_CalcStarsAlign();
 
     if ( rank < 7 )
         return;
@@ -1954,7 +2022,7 @@ int jkPlayer_GetJediRank()
 
 void jkPlayer_SetRank(int rank)
 {
-    sithPlayer_SetBinAmt(SITHBIN_JEDI_RANK, (float)rank);
+    sithPlayer_SetBinAmt(SITHBIN_JEDI_RANK, (flex_t)rank); // FLEXTODO
 }
 
 // MOTS added
@@ -1973,7 +2041,7 @@ uint32_t jkPlayer_ChecksumExtra(uint32_t hash)
     uint32_t uVar2;
     int64_t lVar3;
     int local_8c;
-    float local_88;
+    flex32_t local_88;
     int local_84;
     char local_80 [128];
     
@@ -2028,9 +2096,9 @@ int jkPlayer_SetAmmoMaximums(int classIdx)
 
 #ifdef JKM_DSS
     int iVar1;
-    float *pfVar2;
+    flex_t *pfVar2;
     int local_8c;
-    float local_88;
+    flex32_t local_88;
     int local_84;
     char local_80 [128];
     
@@ -2052,7 +2120,7 @@ int jkPlayer_SetAmmoMaximums(int classIdx)
                 if (iVar1 == 0) {
                     stdConffile_Close();
                     jkHudInv_FixAmmoMaximums();
-                    pfVar2 = jkPlayer_aMultiParams + 0x33;
+                    pfVar2 = jkPlayer_aMultiParams + 51;
                     do {
                         iVar1 = (int)pfVar2[-1];
                         if ((-1 < iVar1) && (iVar1 < 200)) {
@@ -2100,7 +2168,7 @@ void jkPlayer_idkEndLevel(void)
         local_4 = 8;
     }
 
-    sithPlayer_SetBinAmt(SITHBIN_JEDI_RANK,(float)local_4);
+    sithPlayer_SetBinAmt(SITHBIN_JEDI_RANK,(flex_t)local_4); // FLEXTODO
 }
 
 // MOTS added
@@ -2112,11 +2180,11 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
 
     int *piVar2;
     int iVar3;
-    float *pfVar4;
+    flex_t *pfVar4;
     int iVar5;
     int iVar6;
-    double dVar8;
-    float fVar9;
+    flex_d_t dVar8;
+    flex_t fVar9;
     int *local_c;
     int local_8;
     int local_4;
@@ -2137,7 +2205,7 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
         {
             sithPlayer_SetBinAmt(SITHBIN_F_JUMP,1.0);
             fVar9 = sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
-            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(float)(fVar9 - 1.0));
+            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(flex_t)(fVar9 - 1.0)); // FLEXTODO
         }
 
         if (((1 < rank) &&
@@ -2146,7 +2214,7 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
         {
             sithPlayer_SetBinAmt(SITHBIN_F_PULL,1.0);
             fVar9 = sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
-            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(float)(fVar9 - 1.0));
+            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(flex_t)(fVar9 - 1.0)); // FLEXTODO
         }
 
         if (((3 < rank) && (fVar9 = sithPlayer_GetBinAmt(SITHBIN_F_SEEING), fVar9 < 1.0)) &&
@@ -2154,7 +2222,7 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
         {
             sithPlayer_SetBinAmt(SITHBIN_F_SEEING,1.0);
             fVar9 = sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
-            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(float)(fVar9 - 1.0));
+            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(flex_t)(fVar9 - 1.0)); // FLEXTODO
         }
 
         iVar3 = rank;
@@ -2163,7 +2231,7 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
         {
             sithPlayer_SetBinAmt(SITHBIN_F_PERSUASION,1.0);
             fVar9 = sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
-            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(float)(fVar9 - 1.0));
+            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(flex_t)(fVar9 - 1.0)); // FLEXTODO
         }
     }
     else 
@@ -2225,7 +2293,7 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
                         if (fVar9 <= jkPlayer_aMultiParams[119]) break;
                         iVar5 = iVar5 + -2;
                         fVar9 = sithPlayer_GetBinAmt(SITHBIN_F_DEFENSE);
-                        sithPlayer_SetBinAmt(SITHBIN_F_DEFENSE,(float)(fVar9 - 1.0));
+                        sithPlayer_SetBinAmt(SITHBIN_F_DEFENSE,(flex_t)(fVar9 - 1.0)); // FLEXTODO
                     } while (0 < iVar5);
 
                     if (0 < iVar5) {
@@ -2238,7 +2306,7 @@ int jkPlayer_SyncForcePowers(int rank,int bIsMulti)
                                        (fVar9 = sithPlayer_GetBinAmt(iVar3),
                                        *pfVar4 < fVar9))) {
                                     fVar9 = sithPlayer_GetBinAmt(iVar3);
-                                    sithPlayer_SetBinAmt(iVar3,(float)(fVar9 - 1.0));
+                                    sithPlayer_SetBinAmt(iVar3,(flex_t)(fVar9 - 1.0)); // FLEXTODO
                                     iVar5 = iVar5 + -1;
                                     if (iVar5 == 0) goto LAB_0040747a;
                                 }
@@ -2254,7 +2322,7 @@ LAB_0040747a:
                 bIsMulti = -iVar5;
             }
             else {
-                sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(float)(iVar3 - iVar5));
+                sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(flex_t)(iVar3 - iVar5)); // FLEXTODO
                 bIsMulti = 0;
             }
         }

@@ -96,24 +96,67 @@
 static HostServices hs;
 
 #ifdef QOL_IMPROVEMENTS
-int Main_bDedicatedServer = 0;
-int Main_bHeadless = 0;
-int Main_bVerboseNetworking = 0;
-int Main_bMotsCompat = 0;
-int Main_bDwCompat = 0;
-int Main_bEnhancedCogVerbs = 0;
+int32_t Main_bDedicatedServer = 0;
+int32_t Main_bAutostart = 0;
+int32_t Main_bAutostartSp = 0;
+int32_t Main_bHeadless = 0;
+int32_t Main_bVerboseNetworking = 0;
+int32_t Main_bMotsCompat = 0;
+int32_t Main_bDwCompat = 0;
+int32_t Main_bEnhancedCogVerbs = 0;
+char Main_strEpisode[129];
+char Main_strMap[128+4];
 #endif
 
-#ifdef QOL_IMPROVEMENTS
-int Main_StartupDedicated()
+#if defined(QOL_IMPROVEMENTS) && !defined(TARGET_NO_MULTIPLAYER_MENUS)
+int Main_StartupDedicated(int bFullyDedicated)
 {
+    char* pRemoveExt;
+    int bExplicitMap = 1;
+    char aTmpPlayerShortName[32];
+    const char* defaultEpisode = Main_bMotsCompat ? "" : "JK1MP";
+    const char* defaultMap = Main_bMotsCompat ? "" : "m2.jkl";
+
     jkSmack_stopTick = 1;
     jkSmack_nextGuiState = JK_GAMEMODE_TITLE;
     Window_SetDrawHandlers(stdDisplay_DrawAndFlipGdi, stdDisplay_SetCooperativeLevel);
 
-    jkPlayer_CreateConf(L"ServerDed");
+    if (!strlen(Main_strEpisode)) {
+        strcpy(Main_strEpisode, defaultEpisode);
+        bExplicitMap = 0;
+    }
+    if (!strlen(Main_strMap)) {
+        strcpy(Main_strEpisode, defaultEpisode); // TODO
+        strcpy(Main_strMap, defaultMap);
+        bExplicitMap = 0;
+    }
+    if (pRemoveExt = strchr(Main_strEpisode, '.')) {
+        *pRemoveExt = 0;
+    }
+    if (pRemoveExt = strchr(Main_strMap, '.')) {
+        *pRemoveExt = 0;
+    }
+    strcat(Main_strMap, ".jkl");
 
-    jkGuiNetHost_bIsDedicated = 1;
+    if (bFullyDedicated) {
+        strcpy(aTmpPlayerShortName, "ServerDed");
+        stdString_CharToWchar(jkPlayer_playerShortName, aTmpPlayerShortName, 31);
+        jkPlayer_playerShortName[31] = 0;
+        jkPlayer_CreateConf(L"ServerDed");
+    }
+    else {
+        wuRegistry_GetString("playerShortName", aTmpPlayerShortName, 32, "ServerDed");
+        stdString_CharToWchar(jkPlayer_playerShortName, aTmpPlayerShortName, 31);
+        jkPlayer_playerShortName[31] = 0;
+        jkPlayer_CreateConf(jkPlayer_playerShortName);
+    }
+    
+
+    // Dedicated player has no control at all
+    if (bFullyDedicated) {
+        jkGuiNetHost_bIsDedicated = 1;
+    }
+
     jkGuiNetHost_SaveSettings();
     jkGuiNetHost_LoadSettings();
 
@@ -121,7 +164,9 @@ int Main_StartupDedicated()
     stdString_SafeWStrCopy(jkGuiMultiplayer_mpcInfo.name, L"", 32);
     stdString_SafeStrCopy(jkGuiMultiplayer_mpcInfo.model, "ky.3do", 32);
     stdString_SafeStrCopy(jkGuiMultiplayer_mpcInfo.soundClass, "ky.snd", 32);
+#ifndef OPTIMIZE_OUT_UNUSED_FIELDS
     //stdString_SafeStrCopy(jkGuiMultiplayer_mpcInfo.gap80, "", 32);
+#endif
     stdString_SafeStrCopy(jkGuiMultiplayer_mpcInfo.sideMat, "sabergreen1.mat", 32);
     stdString_SafeStrCopy(jkGuiMultiplayer_mpcInfo.tipMat, "sabergreen0.mat", 32);
     jkGuiMultiplayer_mpcInfo.jediRank = 0;
@@ -141,10 +186,15 @@ int Main_StartupDedicated()
     jkMultiEntry3 v34;
     memset(&v34, 0, sizeof(v34));
 
+    if (bExplicitMap) {
+        wuRegistry_SetString("serverEpisodeGob", Main_strEpisode);
+        wuRegistry_SetString("serverMapJkl", Main_strMap);
+    }
+
     wuRegistry_GetWString("gameName", v34.serverName, 32, L"OpenJKDF2 Dedicated Server");
     wuRegistry_GetWString("serverPassword", v34.wPassword, 32, L"");
-    wuRegistry_GetString("serverEpisodeGob", v34.episodeGobName, 32, "JK1MP");
-    wuRegistry_GetString("serverMapJkl", v34.mapJklFname, 32, "m2.jkl");
+    wuRegistry_GetString("serverEpisodeGob", v34.episodeGobName, 32, Main_strEpisode);
+    wuRegistry_GetString("serverMapJkl", v34.mapJklFname, 32, Main_strMap);
 
     if (_wcslen(v34.wPassword)) {
         jkGuiNetHost_sessionFlags |= SESSIONFLAG_PASSWORD;
@@ -163,7 +213,8 @@ int Main_StartupDedicated()
     sithNet_scorelimit = v34.scoreLimit;
     sithNet_multiplayer_timelimit = v34.timeLimit;
 
-    int v21 = sithMulti_CreatePlayer(
+    if (!Main_bAutostartSp) {
+        int v21 = sithMulti_CreatePlayer(
               v34.serverName,
               v34.wPassword,
               v34.episodeGobName,
@@ -173,24 +224,35 @@ int Main_StartupDedicated()
               v34.multiModeFlags,
               v34.tickRateMs,
               v34.maxRank);
-    if ( v21 == 0x88770118 )
-    {
-        jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_HOSTERROR"), jkStrings_GetUniStringWithFallback("GUINET_USERCANCEL"));
+        if ( v21 == 0x88770118 )
+        {
+            jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_HOSTERROR"), jkStrings_GetUniStringWithFallback("GUINET_USERCANCEL"));
+        }
+        else if ( v21 )
+        {
+            jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_HOSTERROR"), jkStrings_GetUniStringWithFallback("GUINET_NOCONNECT"));
+        }
     }
-    else if ( v21 )
-    {
-        jkGuiDialog_ErrorDialog(jkStrings_GetUniStringWithFallback("GUINET_HOSTERROR"), jkStrings_GetUniStringWithFallback("GUINET_NOCONNECT"));
-    }
+    
     
     std3D_StartScene();
     std3D_EndScene();
     sithMain_Load("static.jkl");
     jkHudInv_InitItems();
 
-    if ( jkMain_loadFile2(v34.episodeGobName, v34.mapJklFname) )
-    {
-        return 1;
+    if (!Main_bAutostartSp) {
+        if (jkMain_loadFile2(v34.episodeGobName, v34.mapJklFname))
+        {
+            return 1;
+        }
     }
+    else {
+        if (jkMain_LoadLevelSingleplayer(v34.episodeGobName, v34.mapJklFname))
+        {
+            return 1;
+        }
+    }
+    
 
     return 0;
 }
@@ -205,7 +267,7 @@ int Main_Startup(const char *cmdline)
     setlocale(LC_ALL, "C");
 #endif
 
-    stdInitServices(&hs);    
+    stdInitServices(&hs);
     jkGuiNetHost_maxRank = 4;
     jkGuiNetHost_maxPlayers = 4;
     Video_modeStruct.geoMode = 4;
@@ -246,6 +308,9 @@ int Main_Startup(const char *cmdline)
     jkGuiSound_musicVolume = 1.0;
     stdPlatform_Printf("%s\n", Main_path);
     Main_ParseCmdLine((char *)cmdline);
+#ifdef TARGET_TWL
+    Main_bNoHUD = 1;
+#endif
 
     if ( Main_logLevel == 1 )
     {
@@ -293,8 +358,8 @@ int Main_Startup(const char *cmdline)
     }
     stdStartup(&hs); // Added
     InstallHelper_SetCwd(); // Added
-    
-    wuRegistry_Startup(HKEY_LOCAL_MACHINE, "Software\\LucasArts Entertainment Company\\JediKnight\\v1.0", "0.1");
+
+    wuRegistry_Startup(HKEY_LOCAL_MACHINE, "Software\\LucasArts Entertainment Company\\JediKnight\\v1.0", (BYTE*)"0.1");
     //stdStartup(&hs); // Moved
 
     stdHttp_Startup();
@@ -308,10 +373,12 @@ int Main_Startup(const char *cmdline)
     if (Windows_InitWindow())
     {
         rdStartup(&hs);
-        jkGuiRend_Startup();
-        jkGui_Startup();
+        jkGuiRend_Startup(); // B15E8
+        jkGui_Startup(); // 15C6D1
+#if !defined(TARGET_NO_MULTIPLAYER_MENUS)
         jkGuiMultiplayer_Startup();
         jkGuiNetHost_Startup();
+#endif
         jkGuiSetup_Startup();
         jkGuiDisplay_Startup();
         jkGuiForce_Startup();
@@ -327,14 +394,18 @@ int Main_Startup(const char *cmdline)
         jkGuiControlOptions_Startup();
         jkGuiObjectives_Startup();
         jkGuiSingleTally_Startup();
+#if !defined(TARGET_NO_MULTIPLAYER_MENUS)
         jkGuiMultiTally_Startup();
         jkGuiBuildMulti_StartupEditCharacter();
+#endif
         jkGuiTitle_Startup();
         jkGuiGeneral_Startup();
         jkGuiGameplay_Startup();
         jkGuiDecision_Startup();
         jkGuiSingleplayer_Startup();
+#if !defined(TARGET_NO_MULTIPLAYER_MENUS)
         jkGuiBuildMulti_Startup();
+#endif
         jkGuiSaveLoad_Startup();
         jkGuiControlSaveLoad_Startup();
 #ifdef QOL_IMPROVEMENTS
@@ -359,13 +430,15 @@ int Main_Startup(const char *cmdline)
         jkSmack_Startup();
 
         std3D_Startup(); // Added
+#ifdef QUAKE_CONSOLE
         jkQuakeConsole_Startup(); // Added
+#endif
 
         if (jkRes_LoadCD(0))
         {
-#ifdef QOL_IMPROVEMENTS
-            if (Main_bDedicatedServer) {
-                if (Main_StartupDedicated())
+#if defined(QOL_IMPROVEMENTS) && !defined(TARGET_NO_MULTIPLAYER_MENUS)
+            if (Main_bDedicatedServer || Main_bAutostart) {
+                if (Main_StartupDedicated(Main_bDedicatedServer))
                 {
                     return 1;
                 }
@@ -383,18 +456,25 @@ int Main_Startup(const char *cmdline)
         }
         return 0;
     }
+
     return 0;
 }
 
 void Main_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     std3D_Shutdown(); // Added
+#ifdef QUAKE_CONSOLE
     jkQuakeConsole_Shutdown();
+#endif
 
     jkSmack_Shutdown();
     jkGuiControlSaveLoad_Shutdown();
     jkGuiSaveLoad_Shutdown();
+#if !defined(TARGET_NO_MULTIPLAYER_MENUS)
     jkGuiBuildMulti_Shutdown();
+#endif
     jkGuiSingleplayer_Shutdown();
     jkGuiDecision_Shutdown();
     jkGuiGameplay_Shutdown();
@@ -410,8 +490,10 @@ void Main_Shutdown()
     jkGuiForce_Shutdown();
     jkGuiDisplay_Shutdown();
     jkGuiSetup_Shutdown();
+#if !defined(TARGET_NO_MULTIPLAYER_MENUS)
     jkGuiNetHost_Shutdown();
     jkGuiMultiplayer_Shutdown();
+#endif
     jkGuiMain_Shutdown();
     jkGuiPlayer_Shutdown();
     jkGuiSound_Shutdown();
@@ -460,10 +542,15 @@ void Main_Shutdown()
 
     // Added
     Main_bDedicatedServer = 0;
+    Main_bAutostart = 0;
     Main_bHeadless = 0;
     Main_bVerboseNetworking = 0;
     Main_bDwCompat = 0;
     Main_bEnhancedCogVerbs = 0;
+    memset(Main_strEpisode, 0, sizeof(Main_strEpisode));
+    memset(Main_strMap, 0, sizeof(Main_strMap));
+
+    stdPlatform_Printf("OpenJKDF2: %s done\n", __func__);
 
 #ifndef QOL_IMPROVEMENTS
     exit(0);
@@ -489,59 +576,54 @@ void Main_ShowHelp()
 
 void Main_ParseCmdLine(char *cmdline)
 {
-    char *v1; // esi
-    char *v2; // esi
-    char *v3; // esi
-    char *v4; // eax
-
-    for (v1 = _strtok(cmdline, " \t"); v1; v1 = _strtok(0, " \t"))
+    for (char* pArgTok = _strtok(cmdline, " \t"); pArgTok; pArgTok = _strtok(0, " \t"))
     {
-        if ( !__strcmpi(v1, "-path") || !__strcmpi(v1, "/path") )
+        if ( !__strcmpi(pArgTok, "-path") || !__strcmpi(pArgTok, "/path") )
         {
-            v4 = _strtok(0, " \t");
-            stdString_SafeStrCopy(Main_path, v4, 0x80);
+            char* pArgNext = _strtok(0, " \t");
+            stdString_SafeStrCopy(Main_path, pArgNext, 0x80);
         }
-        else if ( !__strcmpi(v1, "-fail") || !__strcmpi(v1, "/fail") ) // MOTS added
+        else if ( !__strcmpi(pArgTok, "-fail") || !__strcmpi(pArgTok, "/fail") ) // MOTS added
         {
             //Main_failLogFp = fopen("fail.log", "w");
         }
-        else if ( !__strcmpi(v1, "-devMode") || !__strcmpi(v1, "devMode") )
+        else if ( !__strcmpi(pArgTok, "-devMode") || !__strcmpi(pArgTok, "devMode") )
         {
             Main_bDevMode = 1;
             Main_bDisplayConfig = 1;
         }
-        else if (!__strcmpi(v1, "-dispStats") || !__strcmpi(v1, "/dispStats") )
+        else if (!__strcmpi(pArgTok, "-dispStats") || !__strcmpi(pArgTok, "/dispStats") )
         {
             Main_bDispStats = 1;
         }
-        else if (!__strcmpi(v1, "-frameRate") || !__strcmpi(v1, "/frameRate") )
+        else if (!__strcmpi(pArgTok, "-frameRate") || !__strcmpi(pArgTok, "/frameRate") )
         {
             Main_bFrameRate = 1;
         }
-        else if (!__strcmpi(v1, "-windowGUI") || !__strcmpi(v1, "/windowGUI") )
+        else if (!__strcmpi(pArgTok, "-windowGUI") || !__strcmpi(pArgTok, "/windowGUI") )
         {
             Main_bWindowGUI = 1;
         }
-        else if ( !__strcmpi(v1, "-displayConfig") || !__strcmpi(v1, "/displayConfig") )
+        else if ( !__strcmpi(pArgTok, "-displayConfig") || !__strcmpi(pArgTok, "/displayConfig") )
         {
             Main_bDisplayConfig = 1;
         }
-        else if ( !__strcmpi(v1, "-?") || !__strcmpi(v1, "/?") )
+        else if ( !__strcmpi(pArgTok, "-?") || !__strcmpi(pArgTok, "/?") )
         {
             Main_ShowHelp();
         }
-        else if (!__strcmpi(v1, "-debug") || !__strcmpi(v1, "/debug") )
+        else if (!__strcmpi(pArgTok, "-debug") || !__strcmpi(pArgTok, "/debug") )
         {
-            v3 = _strtok(0, " \t");
-            if (!__strcmpi(v3, "con") )
+            char* pArgNext = _strtok(0, " \t");
+            if (!__strcmpi(pArgNext, "con") )
             {
                 Main_logLevel = 1;
             }
-            else if (!__strcmpi(v3, "log") )
+            else if (!__strcmpi(pArgNext, "log") )
             {
                 Main_logLevel = 2;
             }
-            else if (!__strcmpi(v3, "none") )
+            else if (!__strcmpi(pArgNext, "none") )
             {
                 Main_logLevel = 0;
             }
@@ -550,64 +632,86 @@ void Main_ParseCmdLine(char *cmdline)
                 Main_ShowHelp();
             }
         }
-        else if (!__strcmpi(v1, "-verbose") || !__strcmpi(v1, "/verbose") )
+        else if (!__strcmpi(pArgTok, "-verbose") || !__strcmpi(pArgTok, "/verbose") )
         {
-            v2 = _strtok(0, " \t");
-            if ( _atoi(v2) < 0 )
+            char* pArgNext = _strtok(0, " \t");
+            if ( _atoi(pArgNext) < 0 )
             {
                 Main_verboseLevel = 0;
             }
-            else if ( _atoi(v2) > 2 )
+            else if ( _atoi(pArgNext) > 2 )
             {
                 Main_verboseLevel = 2;
             }
             else
             {
-                Main_verboseLevel = _atoi(v2);
+                Main_verboseLevel = _atoi(pArgNext);
             }
         }
-        else if (!__strcmpi(v1, "-noHUD") || !__strcmpi(v1, "/noHUD") )
+        else if (!__strcmpi(pArgTok, "-noHUD") || !__strcmpi(pArgTok, "/noHUD") )
         {
             Main_bNoHUD = 1;
         }
-        else if ( !__strcmpi(v1, "-record") || !__strcmpi(v1, "/record") ) // MOTS added
+        else if ( !__strcmpi(pArgTok, "-record") || !__strcmpi(pArgTok, "/record") ) // MOTS added
         {
             //sithTime_idk_record(0x53,0x53);
             //Main_bRecord = 1;
         }
-        else if ( !__strcmpi(v1, "-fixed") || !__strcmpi(v1, "/fixed") ) // MOTS added
+        else if ( !__strcmpi(pArgTok, "-fixed") || !__strcmpi(pArgTok, "/fixed") ) // MOTS added
         {
             //sithTime_idk_record(0x53,0x53);
         }
-        else if ( !__strcmpi(v1, "-coglog") || !__strcmpi(v1, "/coglog") ) // MOTS added
+        else if ( !__strcmpi(pArgTok, "-coglog") || !__strcmpi(pArgTok, "/coglog") ) // MOTS added
         {
             //Main_cogLogFp = fopen("cog.log", "wc");
         }
 #ifdef QOL_IMPROVEMENTS
-        else if (!__strcmpi(v1, "-dedicatedServer") || !__strcmpi(v1, "/dedicatedServer") )
+        else if (!__strcmpi(pArgTok, "-dedicatedServer") || !__strcmpi(pArgTok, "/dedicatedServer") )
         {
             Main_bDedicatedServer = 1;
         }
-        else if (!__strcmpi(v1, "-headless") || !__strcmpi(v1, "/headless") )
+        else if (!__strcmpi(pArgTok, "-autostart") || !__strcmpi(pArgTok, "/autostart") )
+        {
+            Main_bAutostart = 1;
+        }
+        else if (!__strcmpi(pArgTok, "-sp") || !__strcmpi(pArgTok, "/sp") || !__strcmpi(pArgTok, "-singleplayer") || !__strcmpi(pArgTok, "/singleplayer"))
+        {
+            Main_bAutostartSp = 1;
+        }
+        else if (!__strcmpi(pArgTok, "-mp") || !__strcmpi(pArgTok, "/mp") || !__strcmpi(pArgTok, "-multiplayer") || !__strcmpi(pArgTok, "/multiplayer"))
+        {
+            Main_bAutostartSp = 0;
+        }
+        else if (!__strcmpi(pArgTok, "-episode") || !__strcmpi(pArgTok, "/episode") )
+        {
+            char* pArgNext = _strtok(0, " \t");
+            stdString_SafeStrCopy(Main_strEpisode, pArgNext, 0x80);
+        }
+        else if (!__strcmpi(pArgTok, "-map") || !__strcmpi(pArgTok, "/map") )
+        {
+            char* pArgNext = _strtok(0, " \t");
+            stdString_SafeStrCopy(Main_strMap, pArgNext, 0x80);
+        }
+        else if (!__strcmpi(pArgTok, "-headless") || !__strcmpi(pArgTok, "/headless") )
         {
             Main_bHeadless = 1;
         }
-        else if (!__strcmpi(v1, "-verboseNetworking") || !__strcmpi(v1, "/verboseNetworking") )
+        else if (!__strcmpi(pArgTok, "-verboseNetworking") || !__strcmpi(pArgTok, "/verboseNetworking") )
         {
             Main_bVerboseNetworking = 1;
         }
-        else if (!__strcmpi(v1, "-motsCompat") || !__strcmpi(v1, "/motsCompat"))
+        else if (!__strcmpi(pArgTok, "-motsCompat") || !__strcmpi(pArgTok, "/motsCompat"))
         {
             Main_bMotsCompat = 1;
         }
-        else if (!__strcmpi(v1, "-enhancedCogVerbs") || !__strcmpi(v1, "/enhancedCogVerbs"))
+        else if (!__strcmpi(pArgTok, "-enhancedCogVerbs") || !__strcmpi(pArgTok, "/enhancedCogVerbs"))
         {
             Main_bEnhancedCogVerbs = 1;
         }
-        else if (!__strcmpi(v1, "-dwCompat") 
-                 || !__strcmpi(v1, "/dwCompat") 
-                 || !__strcmpi(v1, "-droidworksCompat") 
-                 || !__strcmpi(v1, "/droidworksCompat"))
+        else if (!__strcmpi(pArgTok, "-dwCompat") 
+                 || !__strcmpi(pArgTok, "/dwCompat") 
+                 || !__strcmpi(pArgTok, "-droidworksCompat") 
+                 || !__strcmpi(pArgTok, "/droidworksCompat"))
         {
             Main_bDwCompat = 1;
         }

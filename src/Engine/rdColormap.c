@@ -1,11 +1,12 @@
 #include "rdColormap.h"
 
+#include "General/stdString.h"
 #include "Engine/rdroid.h"
 #include "Platform/std3D.h"
 #include "Win95/std.h"
 #include "stdPlatform.h"
 
-static rdTexformat rdColormap_colorInfo = {1, 0x10, 5, 6, 5, 0x0B, 5, 0, 3, 2, 3, 0, 0, 0};
+static rdTexFormat rdColormap_colorInfo = {1, 0x10, 5, 6, 5, 0x0B, 5, 0, 3, 2, 3, 0, 0, 0};
 
 int rdColormap_SetCurrent(rdColormap *colormap)
 {
@@ -38,7 +39,10 @@ rdColormap* rdColormap_Load(char *colormap_fname)
         return NULL;
     }
 
+#ifdef SITH_DEBUG_STRUCT_NAMES
+    // TODO why?
     *(int*)colormap->colormap_fname = 0;
+#endif
     if (rdColormap_LoadEntry(colormap_fname, colormap))
       return colormap;
   
@@ -49,10 +53,6 @@ rdColormap* rdColormap_Load(char *colormap_fname)
 int rdColormap_LoadEntry(char *colormap_fname, rdColormap *colormap)
 {
     intptr_t colormap_fptr; // edi
-    const char *v4; // eax
-    int v6; // eax
-    float v7; // edx
-    float v8; // eax
     uint16_t *rgb16Alloc; // eax
     char *v10; // eax
     void *v11; // eax
@@ -66,17 +66,14 @@ int rdColormap_LoadEntry(char *colormap_fname, rdColormap *colormap)
         stdPlatform_Printf("failed to open colormap `%s`!\n", colormap_fname);
         return 0;
     }
-    v4 = stdFileFromPath(colormap_fname);
-    _strncpy(colormap->colormap_fname, v4, 0x1Fu);
-    colormap->colormap_fname[31] = 0;
+#ifdef SITH_DEBUG_STRUCT_NAMES
+    stdString_SafeStrCopy(colormap->colormap_fname, stdFileFromPath(colormap_fname), 32);
+#endif
     rdroid_pHS->fileRead(colormap_fptr, &header, 0x40);
-    v6 = header.flags;
-    v7 = header.tint.y;
-    colormap->tint.x = header.tint.x;
-    colormap->flags = v6;
-    v8 = header.tint.z;
-    colormap->tint.y = v7;
-    colormap->tint.z = v8;
+    colormap->tint.x = header.tint[0];
+    colormap->flags = header.flags;
+    colormap->tint.y = header.tint[1];
+    colormap->tint.z = header.tint[2];
     if ( _strncmp((const char *)&header.magic, "CMP ", 4u) )
     {
         jk_printf("CMP magic in `%s` is invalid!\n", colormap_fname);
@@ -184,15 +181,15 @@ LABEL_26:
     }
 
 
-    colormap->lightlevel = colorsLights;
+    colormap->lightlevel = (uint8_t*)colorsLights;
     if ( (intptr_t)colorsLights & 0xFF )
-        colormap->lightlevel = (void*)((intptr_t)colorsLights - ((intptr_t)colorsLights & 0xFF) + 0x100);
+        colormap->lightlevel = (uint8_t*)((intptr_t)colorsLights - ((intptr_t)colorsLights & 0xFF) + 0x100);
 
     rdroid_pHS->fileRead(colormap_fptr, colormap->lightlevel, 0x4000);
 
     if (colormap->flags & 1) 
     {
-        v10 = rdroid_pHS->alloc(0x10100);
+        v10 = (char*)rdroid_pHS->alloc(0x10100);
         colormap->transparencyAlloc = v10;
         if (!v10)
         {
@@ -277,7 +274,9 @@ int rdColormap_Write(char *outpath, rdColormap *colormap)
     _memset(&header, 0, sizeof(header));
     _strncpy((char*)&header.magic, "CMP ", 4);
     header.version = 30;
-    rdVector_Copy3(&header.tint, &colormap->tint);
+    header.tint[0] = colormap->tint.x;
+    header.tint[1] = colormap->tint.y;
+    header.tint[2] = colormap->tint.z;
     header.flags = colormap->flags;
 
     fd = rdroid_pHS->fileOpen(outpath, "wb+");
@@ -320,7 +319,13 @@ int rdColormap_Write(char *outpath, rdColormap *colormap)
     return 1;
 }
 
-int rdColormap_BuildRGB16(uint16_t *paColors16, rdColor24 *paColors24, uint8_t a4, uint8_t a5, uint8_t a6, rdTexformat *format)
+int rdColormap_BuildRGB16(uint16_t *paColors16, rdColor24 *paColors24, uint8_t a4, uint8_t a5, uint8_t a6, rdTexFormat *format)
 {
+    return 1;
+}
+
+int rdColormap_BuildGrayRamp(rdColormap* pColormap) {
+    // TODO
+    jk_printf("OpenJKDF2: Unimplemented function rdColormap_BuildGrayRamp!!\n");
     return 1;
 }

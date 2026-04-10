@@ -7,23 +7,35 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef LINUX
+#ifdef FS_POSIX
 #include "external/fcaseopen/fcaseopen.h"
 #endif
 
 #ifdef SDL2_RENDER
 #include "SDL2_helper.h"
+#endif
+//#define stdEmbeddedRes_errmsg(_msg) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", _msg, NULL)
+//#else
+#define stdEmbeddedRes_errmsg(_msg) stdPlatform_Printf("stdEmbeddedRes: %s\n", _msg)
+//#endif
 
-#define stdEmbeddedRes_errmsg(_msg) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", _msg, NULL)
-#else
-#define stdEmbeddedRes_errmsg(_msg) stdPlatform_Printf("Critical Error: %s\n", _msg)
+#ifdef TARGET_TWL
+#include <nds.h>
+#include <sys/stat.h>
 #endif
 
 char* stdEmbeddedRes_LoadOnlyInternal(const char* filepath, size_t* pOutSz)
 {
+#ifdef TARGET_TWL
+    struct stat statstuff;
+    int exists = 0;
+#endif
+    FILE* f = NULL;
+    char* base_path = NULL;
+    char* file_contents = NULL;
     char tmp_filepath[256];
-    strncpy(tmp_filepath, "resource/", 256);
-    strncat(tmp_filepath, filepath, 256);
+    strncpy(tmp_filepath, "resource/", 256-1);
+    strncat(tmp_filepath, filepath, 256-1);
 
     if (pOutSz) {
         *pOutSz = 0;
@@ -38,15 +50,20 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
 }
 #endif
 
-    char* file_contents = NULL;
-    FILE* f = fopen(tmp_filepath, "r");
+#ifdef TARGET_TWL
+    exists = stat(tmp_filepath, &statstuff) >= 0;
+    if (!exists) {
+        goto skip_fopen;
+    }
+#endif
     
 #if defined(MACOS) && defined(SDL2_RENDER)
-    char* base_path = SDL_GetBasePath();
-    strncpy(tmp_filepath, base_path, 256);
-    strncat(tmp_filepath, "Contents/Resources/", 256);
-    strncat(tmp_filepath, filepath, 256);
+    base_path = SDL_GetBasePath();
+    strncpy(tmp_filepath, base_path, 256-1);
+    strncat(tmp_filepath, "Contents/Resources/", 256-1);
+    strncat(tmp_filepath, filepath, 256-1);
     SDL_free(base_path);
+#endif
 
     f = fopen(tmp_filepath, "r");
     if (f) {
@@ -54,7 +71,14 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
         size_t len = ftell(f);
         rewind(f);
         
-        file_contents = malloc(len+1);
+        file_contents = (char*)malloc(len+1);
+        if (!file_contents) {
+            if (pOutSz) {
+                *pOutSz = 0;
+            }
+            fclose(f);
+            return NULL;
+        }
         
         if (fread(file_contents, 1, len, f) != len)
         {
@@ -72,9 +96,9 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
         }
         return file_contents;
     }
-#endif
 
-    strncpy(tmp_filepath, filepath, 256);
+skip_fopen:
+    strncpy(tmp_filepath, filepath, 256-1);
     
     for (int i = 0; i < strlen(tmp_filepath); i++)
     {
@@ -86,7 +110,13 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
     for (size_t i = 0; i < embeddedResource_aFiles_num; i++)
     {
         if (!strcmp(embeddedResource_aFiles[i].fpath, tmp_filepath)) {
-            file_contents = malloc(embeddedResource_aFiles[i].data_len+1);
+            file_contents = (char*)malloc(embeddedResource_aFiles[i].data_len+1);
+            if (!file_contents) {
+                if (pOutSz) {
+                    *pOutSz = 0;
+                }
+                return NULL;
+            }
             memcpy(file_contents, embeddedResource_aFiles[i].data, embeddedResource_aFiles[i].data_len);
             file_contents[embeddedResource_aFiles[i].data_len] = 0;
 
@@ -103,9 +133,16 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
 
 char* stdEmbeddedRes_Load(const char* filepath, size_t* pOutSz)
 {
+#ifdef TARGET_TWL
+    struct stat statstuff;
+    int exists = 0;
+#endif
+    FILE* f = NULL;
+    char* base_path = NULL;
+    char* file_contents = NULL;
     char tmp_filepath[256];
-    strncpy(tmp_filepath, "resource/", 256);
-    strncat(tmp_filepath, filepath, 256);
+    strncpy(tmp_filepath, "resource/", 256-1);
+    strncat(tmp_filepath, filepath, 256-1);
 
     if (pOutSz) {
         *pOutSz = 0;
@@ -120,8 +157,8 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
 }
 #endif
 
-#ifdef LINUX
-    char *r = malloc(strlen(tmp_filepath) + 16);
+#ifdef FS_POSIX
+    char *r = (char*)malloc(strlen(tmp_filepath) + 16);
     if (casepath(tmp_filepath, r))
     {
         strcpy(tmp_filepath, r);
@@ -129,8 +166,15 @@ for (int i = 0; i < strlen(tmp_filepath); i++)
     free(r);
 #endif
 
-    char* file_contents = NULL;
-    FILE* f = fopen(tmp_filepath, "r");
+
+#ifdef TARGET_TWL
+    exists = stat(tmp_filepath, &statstuff) >= 0;
+    if (!exists) {
+        goto skip_fopen;
+    }
+#endif
+
+    f = fopen(tmp_filepath, "r");
     if (f)
     {
 retry_file:
@@ -138,7 +182,14 @@ retry_file:
         size_t len = ftell(f);
         rewind(f);
         
-        file_contents = malloc(len+1);
+        file_contents = (char*)malloc(len+1);
+        if (!file_contents) {
+            if (pOutSz) {
+                *pOutSz = 0;
+            }
+            fclose(f);
+            return NULL;
+        }
         
         if (fread(file_contents, 1, len, f) != len)
         {
@@ -158,10 +209,10 @@ retry_file:
     else
     {
 #if defined(MACOS) && defined(SDL2_RENDER)
-        char* base_path = SDL_GetBasePath();
-        strncpy(tmp_filepath, base_path, 256);
-        strncat(tmp_filepath, "Contents/Resources/", 256);
-        strncat(tmp_filepath, filepath, 256);
+        base_path = SDL_GetBasePath();
+        strncpy(tmp_filepath, base_path, 256-1);
+        strncat(tmp_filepath, "Contents/Resources/", 256-1);
+        strncat(tmp_filepath, filepath, 256-1);
         SDL_free(base_path);
 
         f = fopen(tmp_filepath, "r");
@@ -169,7 +220,8 @@ retry_file:
             goto retry_file;
 #endif
 
-        strncpy(tmp_filepath, filepath, 256);
+skip_fopen:
+        strncpy(tmp_filepath, filepath, 256-1);
         
         for (int i = 0; i < strlen(tmp_filepath); i++)
         {
@@ -181,7 +233,13 @@ retry_file:
         for (size_t i = 0; i < embeddedResource_aFiles_num; i++)
         {
             if (!strcmp(embeddedResource_aFiles[i].fpath, tmp_filepath)) {
-                file_contents = malloc(embeddedResource_aFiles[i].data_len+1);
+                file_contents = (char*)malloc(embeddedResource_aFiles[i].data_len+1);
+                if (!file_contents) {
+                    if (pOutSz) {
+                        *pOutSz = 0;
+                    }
+                    return NULL;
+                }
                 memcpy(file_contents, embeddedResource_aFiles[i].data, embeddedResource_aFiles[i].data_len);
                 file_contents[embeddedResource_aFiles[i].data_len] = 0;
 

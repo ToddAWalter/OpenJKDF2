@@ -126,16 +126,21 @@ typedef struct sithSoundClassEntry
 {
   sithSound *sound;
   int playflags;
-  float maxVolume;
-  float minRadius;
-  float maxRadius;
+  flex_t maxVolume;
+  flex_t minRadius;
+  flex_t maxRadius;
   uint32_t listIdx;
   sithSoundClassEntry *nextSound;
 } sithSoundClassEntry;
 
 typedef struct sithSoundClass
 {
+#ifdef SITH_DEBUG_STRUCT_NAMES
     char snd_fname[32];
+#endif
+#ifdef STDHASHTABLE_CRC32_KEYS
+    uint32_t nameCrc;
+#endif
     sithSoundClassEntry *entries[SITH_SC_MAX];
 } sithSoundClass;
 
@@ -144,14 +149,14 @@ void sithSoundClass_Shutdown();
 int sithSoundClass_Load(sithWorld *world, int a2);
 sithSoundClass* sithSoundClass_LoadFile(char *fpath);
 int sithSoundClass_LoadEntry(sithSoundClass *soundClass, char *fpath);
-void sithSoundClass_ThingPlaySoundclass4(sithThing *thing, unsigned int soundclass_id);
-sithPlayingSound* sithSoundClass_ThingPlaySoundclass5(sithThing *thing, int sc_id, float a3);
-void sithSoundClass_PlayThingSoundclass(sithThing *thing, int sc_id, float a3);
+MATH_FUNC void sithSoundClass_ThingPlaySoundclass4(sithThing *thing, unsigned int soundclass_id);
+MATH_FUNC sithPlayingSound* sithSoundClass_ThingPlaySoundclass5(sithThing *thing, int sc_id, flex_t a3);
+MATH_FUNC void sithSoundClass_PlayThingSoundclass(sithThing *thing, int sc_id, flex_t a3);
 void sithSoundClass_ThingPauseSoundclass(sithThing *thing, unsigned int sc_id);
 void sithSoundClass_Free2(sithWorld *world);
 
-sithPlayingSound* sithSoundClass_PlayModeRandom(sithThing *thing, uint32_t a2);
-sithPlayingSound* sithSoundClass_PlayMode(sithThing *thing, sithSoundClassEntry *entry, float a3);
+MATH_FUNC sithPlayingSound* sithSoundClass_PlayModeRandom(sithThing *thing, uint32_t a2);
+sithPlayingSound* sithSoundClass_PlayMode(sithThing *thing, sithSoundClassEntry *entry, flex_t a3);
 void sithSoundClass_StopSound(sithThing *thing, sithSound *sound);
 int sithSoundClass_SetThingSoundClass(sithThing *thing, sithSoundClass *soundclass);
 

@@ -41,16 +41,11 @@ stdGob* stdGob_Load(char *fpath, int a2, int a3)
 
 int stdGob_LoadEntry(stdGob *gob, char *fname, int a3, int a4)
 {
-    unsigned int v4; // ebx
     int v8; // edx
     stdGobFile *v9; // eax
-    stdGobEntry *ent; // edi
     stdGobHeader header; // [esp+10h] [ebp-Ch]
 
-
-    v4 = 0;
-    _strncpy(gob->fpath, fname, 0x7Fu);
-    gob->fpath[127] = 0;
+    stdString_SafeStrCopy(gob->fpath, fname, 128);
     gob->numFilesOpen = a3;
     gob->lastReadFile = 0;
 
@@ -88,8 +83,13 @@ int stdGob_LoadEntry(stdGob *gob, char *fname, int a3, int a4)
 
     gob->viewMapped = 0;
     gob->fhand = pGobHS->fileOpen(gob->fpath, "r+b");
-    if ( !gob->fhand )
-      return 0;
+    if ( !gob->fhand ) {
+        stdPlatform_Printf("OpenJKDF2: Failed to open `%s`.\n", gob->fpath); // Added
+        return 0;
+    }
+    else {
+        stdPlatform_Printf("OpenJKDF2: Opened `%s`.\n", gob->fpath); // Added
+    }
     gob->openedFile = (stdGobFile *)std_pHS->alloc(sizeof(stdGobFile) * gob->numFilesOpen);
     if ( !gob->openedFile )
       return 0;
@@ -114,18 +114,16 @@ int stdGob_LoadEntry(stdGob *gob, char *fname, int a3, int a4)
     // Added
     _memset(gob->entries, 0, sizeof(stdGobEntry) * gob->numFiles);
 
-    ent = gob->entries;
+    // We're not adding anything so like, keep it small?
+#ifdef TARGET_TWL
+    gob->entriesHashtable = stdHashTable_New(gob->numFiles);
+#else
     gob->entriesHashtable = stdHashTable_New(1024);
-    if ( gob->numFiles > 0u )
+#endif
+    for (int v4 = 0; v4 < gob->numFiles; v4++)
     {
-        do
-        {
-            pGobHS->fileRead(gob->fhand, ent, sizeof(stdGobEntry));
-            stdHashTable_SetKeyVal(gob->entriesHashtable, ent->fname, ent);
-            ++ent;
-            ++v4;
-        }
-        while ( v4 < gob->numFiles );
+        pGobHS->fileRead(gob->fhand, &gob->entries[v4], sizeof(stdGobEntry));
+        stdHashTable_SetKeyVal(gob->entriesHashtable, gob->entries[v4].fname, &gob->entries[v4]);
     }
 
     jk_printf("Loaded GOB file `%s`...\n", fname);
@@ -177,12 +175,12 @@ void stdGob_FreeEntry(stdGob *gob)
 
 stdGobFile* stdGob_FileOpen(stdGob *gob, const char *filepath)
 {
-    stdGobEntry *entry;
-    stdGobFile *result;
+    stdGobEntry *entry = NULL;
+    stdGobFile *result = NULL;
     int v5;
 
     // Embedded resources
-#ifdef QOL_IMPROVEMENTS
+#if defined(QOL_IMPROVEMENTS)
     size_t sz = 0;
     void* data = stdEmbeddedRes_LoadOnlyInternal(filepath, &sz);
     if (data) {
@@ -209,6 +207,10 @@ stdGobFile* stdGob_FileOpen(stdGob *gob, const char *filepath)
     }
 #endif
 
+    // Added: clean up paths
+    if (filepath[0] == '.' && (filepath[1] == '/' || filepath[1] == '\\')) {
+        filepath += 2;
+    }
     stdString_SafeStrCopy(stdGob_fpath, filepath, 128);
     stdString_CStrToLower(stdGob_fpath);
 
@@ -310,6 +312,8 @@ size_t stdGob_FileRead(stdGobFile *f, void *out, uint32_t len)
 {
     stdGob *gob;
     size_t result;
+
+    //printf("\x1b[0;0Hreading %s %p %x\n", f->entry->fname, out, len);
 
 #ifdef QOL_IMPROVEMENTS
     if (f->bIsMemoryMapped) {
@@ -427,7 +431,7 @@ const wchar_t* stdGob_FileGetws(stdGobFile *f, wchar_t *out, unsigned int len)
         if (!to_read) {
             return NULL;
         }
-        __wcsncpy(out, (char*)(f->pMemory + f->seekOffs), to_read / sizeof(wchar_t));
+        __wcsncpy(out, (wchar_t*)(f->pMemory + f->seekOffs), to_read / sizeof(wchar_t));
         wchar_t* cutoff = __wcschr(out, '\n');
         if (cutoff) {
             *(++cutoff) = 0;

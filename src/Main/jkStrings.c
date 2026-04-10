@@ -2,6 +2,7 @@
 
 #include "General/stdStrTable.h"
 #include "Cog/jkCog.h"
+#include "../jk.h"
 
 static int jkStrings_bInitialized = 0;
 static stdStrTable jkStrings_table;
@@ -12,6 +13,8 @@ stdStrTable jkStrings_tableExtOver;
 
 int jkStrings_Startup()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+    
     // Added: clean reset
     _memset(&jkStrings_table, 0, sizeof(jkStrings_table));
 
@@ -32,6 +35,8 @@ int jkStrings_Startup()
 
 void jkStrings_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     // Added: OpenJKDF2 i8n
 #ifdef QOL_IMPROVEMENTS
     stdStrTable_Free(&jkStrings_tableExtOver);

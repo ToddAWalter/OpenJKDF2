@@ -25,7 +25,7 @@ int jkGame_Startup();
 int jkGame_ParseSection(sithWorld* a1, int a2);
 void jkGame_ForceRefresh();
 void jkGame_Shutdown();
-int jkGame_Update();
+MATH_FUNC int jkGame_Update();
 void jkGame_SetDefaultSettings();
 
 void jkGame_ScreensizeIncrease();
@@ -46,8 +46,10 @@ void jkGame_Gamma();
 
 #ifdef SDL2_RENDER
 void jkGame_Screenshot();
-#else
+#elif defined(WIN32)
 static void (*jkGame_Screenshot)() = (void*)jkGame_Screenshot_ADDR;
+#else
+static void jkGame_Screenshot(){}
 #endif
 
 #endif // _JKGAME_H

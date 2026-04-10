@@ -4,6 +4,7 @@
 
 #include "General/stdMath.h"
 #include "Engine/rdroid.h"
+#include "Engine/rdThing.h"
 #include "stdPlatform.h"
 #include "jk.h"
 
@@ -20,7 +21,7 @@ rdPuppet* rdPuppet_New(rdThing *thing)
     puppet->paused = 0;
     puppet->rdthing = thing;
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < RDPUPPET_MAX_TRACKS; i++)
     {
         puppet->tracks[i].field_120 = 0.0;
         puppet->tracks[i].field_124 = 0.0;
@@ -42,7 +43,7 @@ void rdPuppet_Free(rdPuppet *puppet)
     if (!puppet) return;
 
     // Added: prevent UAFs
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < RDPUPPET_MAX_TRACKS; i++)
     {
         puppet->tracks[i].field_4 = 0;
         puppet->tracks[i].keyframe = NULL;
@@ -50,6 +51,34 @@ void rdPuppet_Free(rdPuppet *puppet)
     }
     
     rdroid_pHS->free(puppet);
+}
+
+void rdPuppet_FreeEntry()
+{
+}
+
+void rdPuppet_SetPause(rdPuppet *puppet, int paused)
+{
+    puppet->paused = paused;
+}
+
+void rdPuppet_SetTrackNoise(rdPuppet *puppet, int trackNum, flex_t noise)
+{
+    if ( noise != 0.0f )
+    {
+        puppet->tracks[trackNum].status |= 0x1000;
+    }
+    else
+    {
+        puppet->tracks[trackNum].status &= ~0x1000;
+    }
+    puppet->tracks[trackNum].field_120 = noise;
+}
+
+void rdPuppet_SetTrackPriority(rdPuppet *puppet, int trackNum, int lowPri, int highPri)
+{
+    puppet->tracks[trackNum].lowPri = lowPri;
+    puppet->tracks[trackNum].highPri = highPri;
 }
 
 // MOTS altered
@@ -62,29 +91,27 @@ void rdPuppet_BuildJointMatrices(rdThing *thing, rdMatrix34 *matrix)
     uint32_t v10; // eax
     intptr_t v12; // ecx
     rdAnimEntry *v13;
-    rdHierarchyNode *v15; // edi
-    rdPuppetTrack *v16; // esi
     rdKeyframe *v17; // ebp
     int v18; // ebx
     unsigned int v19; // ecx
     rdJoint *v20; // edx
     uint32_t v21; // eax
-    double v23; // st7
+    flex_d_t v23; // st7
     rdAnimEntry *v24; // eax
     int v25; // ecx
-    double v29; // st6
-    double v30; // st7
-    double v33; // st7
-    double v35; // rtt
-    double v36; // st4
-    float v42; // edx
-    double v45; // st7
-    double v46; // st7
-    double v48; // st5
-    double v50; // st7
+    flex_d_t v29; // st6
+    flex_d_t v30; // st7
+    flex_d_t v33; // st7
+    flex_d_t v35; // rtt
+    flex_d_t v36; // st4
+    flex_t v42; // edx
+    flex_d_t v45; // st7
+    flex_d_t v46; // st7
+    flex_d_t v48; // st5
+    flex_d_t v50; // st7
     rdVector3 *v61; // ecx
-    float v70; // [esp+14h] [ebp-70h]
-    float v71; // [esp+18h] [ebp-6Ch]
+    flex_t v70; // [esp+14h] [ebp-70h]
+    flex_t v71; // [esp+18h] [ebp-6Ch]
     int v73; // [esp+1Ch] [ebp-68h]
     int v75; // [esp+20h] [ebp-64h]
     int v77; // [esp+24h] [ebp-60h]
@@ -93,9 +120,9 @@ void rdPuppet_BuildJointMatrices(rdThing *thing, rdMatrix34 *matrix)
     int v82; // [esp+34h] [ebp-50h]
     rdVector3 a3; // [esp+3Ch] [ebp-48h] BYREF
     rdVector3 a4; // [esp+48h] [ebp-3Ch] BYREF
-    float v86; // [esp+54h] [ebp-30h]
-    float v87; // [esp+58h] [ebp-2Ch]
-    float v88; // [esp+5Ch] [ebp-28h]
+    flex_t v86; // [esp+54h] [ebp-30h]
+    flex_t v87; // [esp+58h] [ebp-2Ch]
+    flex_t v88; // [esp+5Ch] [ebp-28h]
     rdVector3 v89; // [esp+60h] [ebp-24h]
     rdVector3 v90; // [esp+6Ch] [ebp-18h]
     rdVector3 v91; // [esp+78h] [ebp-Ch]
@@ -115,227 +142,222 @@ void rdPuppet_BuildJointMatrices(rdThing *thing, rdMatrix34 *matrix)
     {
         for (int i = 0; i < model->numHierarchyNodes; i++)
         {
-            _memcpy(&thing->hierarchyNodeMatrices[i], &model->hierarchyNodes[i].posRotMatrix, sizeof(rdMatrix34));
+            rdMatrix_Copy34(&thing->hierarchyNodeMatrices[i], &model->hierarchyNodes[i].posRotMatrix);
         }
+        goto accumulate_finalize;
     }
-    else
+    
+    for (int i = 0; i < RDPUPPET_MAX_TRACKS; i++)
     {
-        for (int i = 0; i < 4; i++)
-        {
-            v4 = &puppet->tracks[i];
+        v4 = &puppet->tracks[i];
 
-            //if (thing->parentSithThing == sithPlayer_pLocalPlayerThing && v4->keyframe)
-            //    stdPlatform_Printf("%d %s (%x/%u) %p %x %f\n", i, v4->keyframe->name, v4->keyframe->id, v4->keyframe->id, v4->keyframe, v4->status, v4->playSpeed);
+        //if (thing->parentSithThing == sithPlayer_pLocalPlayerThing && v4->keyframe)
+        //    stdPlatform_Printf("%d %s (%x/%u) %p %x %f\n", i, v4->keyframe->name, v4->keyframe->id, v4->keyframe->id, v4->keyframe, v4->status, v4->playSpeed);
 
-            // Added: paJoints check
-            if ( v4->status && v4->keyframe && v4->keyframe->paJoints)
-            {
-                for (int j = 0; j < v4->keyframe->numJoints2; j++)
-                {
-                    v8 = &v4->keyframe->paJoints[j];
-                    v9 = 0;
-                    if (!v8->numAnimEntries) continue;
-
-                    // Added: this spot keeps crashing, add bounds checks
-                    if (v8->nodeIdx < 0 || v8->nodeIdx >= 64)
-                    {
-                        v8->nodeIdx = 0;
-                    }
-
-                    v10 = v4->nodes[v8->nodeIdx];// nodeIdx
-
-                    // Added: keep ASAN happy and prevent OOB accesses
-                    if (v10 >= v8->numAnimEntries) {
-                        v10 = v8->numAnimEntries - 1;
-                    }
-
-                    if ( v10 != v8->numAnimEntries - 1 )
-                    {
-                        v12 = v10 + 1;
-
-                        // TODO: TODOA had an OOB access here
-                        if ( v4->field_120 >= (double)v8->paAnimEntries[v10 + 1].frameNum )
-                        {
-                            v13 = &v8->paAnimEntries[v10 + 2];
-                            do
-                            {
-                                if ( v12 == v8->numAnimEntries - 1 )
-                                {
-                                    v9 = 1;
-                                }
-                                else if ( v4->field_120 >= (double)v13->frameNum )
-                                {
-                                    ++v12;
-                                    v13++;
-                                }
-                                else
-                                {
-                                    v9 = 1;
-                                }
-                            }
-                            while ( !v9 );
-                            v4->nodes[j] = v12;
-                        }
-                    }
-                }
-            }
+        // Added: paJoints check
+        if (!(v4->status && v4->keyframe && v4->keyframe->paJoints)) {
+            continue;
         }
-
-        for (v80 = 0; v80 < model->numHierarchyNodes; v80++)
+        
+        for (int j = 0; j < v4->keyframe->numJoints2; j++)
         {
-            v15 = &model->hierarchyNodes[v80];
-            v16 = puppet->tracks;
-            v75 = 0;
-            v73 = 0;
-            v70 = 0.0;
-            v71 = 0.0;
-            a4.x = 0.0;
-            a4.y = 0.0;
-            a4.z = 0.0;
-            a3.x = 0.0;
-            v90.x = 0.0;
-            v91.x = 0.0;
-            a3.y = 0.0;
-            v90.y = 0.0;
-            v91.y = 0.0;
-            a3.z = 0.0;
-            v90.z = 0.0;
-            v91.z = 0.0;
-            for (int j = 0; j < 4; j++)
+            v8 = &v4->keyframe->paJoints[j];
+            v9 = 0;
+            if (!v8->numAnimEntries) continue;
+
+            // Added: this spot keeps crashing, add bounds checks
+            if (v8->nodeIdx < 0 || v8->nodeIdx >= RDPUPPET_MAX_NODES)
             {
-                v17 = v16->keyframe;
-                if ( v17 )
+                v8->nodeIdx = 0;
+            }
+
+            v10 = v4->nodes[v8->nodeIdx];// nodeIdx
+
+            // Added: keep ASAN happy and prevent OOB accesses
+            if (v10 >= v8->numAnimEntries) {
+                v10 = v8->numAnimEntries - 1;
+            }
+
+            if ( v10 == v8->numAnimEntries - 1 ) {
+                continue;
+            }
+            
+            v12 = v10 + 1;
+
+            // TODO: TODOA had an OOB access here
+            if ( v4->field_120 < (flex_d_t)v8->paAnimEntries[v10 + 1].frameNum ) {
+                continue;
+            }
+            
+            v13 = &v8->paAnimEntries[v10 + 2];
+            do
+            {
+                if ( v12 == v8->numAnimEntries - 1 )
                 {
-                    v18 = (v17->type & v15->type) ? v16->highPri : v16->lowPri;
-                    if (v16->status & 2)
-                    {
-                        v19 = v15->idx;
-                        v20 = &v17->paJoints[v19]; // overflow in orig? added (moved): v19 < v17->numJoints2
-                        if ( v19 < v17->numJoints2 && v20->numAnimEntries )
-                        {
-                            if ( v18 >= v73 && (v18 >= v75 || v70 < 1.0) && v19 < v17->numJoints2 )
-                            {
-                                v21 = v16->nodes[v19];
-
-                                // Added: prevent overflow
-                                if (v21 >= v20->numAnimEntries) {
-                                    v21 = v20->numAnimEntries-1;
-                                }
-                                if (v21 < 0) {
-                                    v21 = 0;
-                                }
-
-                                v23 = v16->field_120 - v20->paAnimEntries[v21].frameNum;
-                                v24 = &v20->paAnimEntries[v21];
-                                v25 = v24->flags;
-                                if ( (v25 & 1) != 0 )
-                                {
-                                    v89.x = v24->vel.x * v23 + v24->pos.x;
-                                    v89.y = v24->vel.y * v23 + v24->pos.y;
-                                    v89.z = v24->vel.z * v23 + v24->pos.z;
-                                }
-                                else
-                                {
-                                    v89 = v24->pos;
-                                }
-                                if ( (v25 & 2) != 0 )
-                                {
-                                    rdVector_Copy3(&tmp1, &v24->orientation);
-                                    rdVector_MultAcc3(&tmp1, &v24->angVel, v23);
-                                }
-                                else
-                                {
-                                    rdVector_Copy3(&tmp1, &v24->orientation);
-                                }
-                                rdVector_Sub3Acc(&v89, &v15->pos);
-                                rdVector_Sub3Acc(&tmp1, &v15->rot);
-                                tmp1.x = stdMath_NormalizeAngleAcute(tmp1.x);
-                                tmp1.y = stdMath_NormalizeAngleAcute(tmp1.y);
-                                tmp1.z = stdMath_NormalizeAngleAcute(tmp1.z);
-                                if ( v16->playSpeed <= 1.0 )
-                                {
-                                    // Added: Make sure anims don't leak in blending
-                                    if (v16->playSpeed < 0.0)
-                                        v16->playSpeed = 0.0;
-
-                                    rdVector_Scale3Acc(&v89, v16->playSpeed);
-                                    rdVector_Scale3Acc(&tmp1, v16->playSpeed);
-                                }
-                                if ( v18 == v75 )
-                                {
-                                    rdVector_Add3Acc(&a4, &v89);
-                                    rdVector_Add3Acc(&a3, &tmp1);
-                                    v70 += v16->playSpeed;
-                                }
-                                else if ( v18 <= v75 )
-                                {
-                                    if ( v18 <= v73 )
-                                    {
-                                        rdVector_Add3Acc(&v90, &v89);
-                                        rdVector_Add3Acc(&v91, &tmp1);
-                                        v71 += v16->playSpeed;
-                                    }
-                                    else
-                                    {
-                                        v90 = v89;
-                                        rdVector_Copy3(&v91, &tmp1);
-                                        v71 = v16->playSpeed;
-                                        v73 = v18;
-                                    }
-                                }
-                                else
-                                {
-                                    v90 = a4;
-                                    v91 = a3;
-                                    v71 = v70;
-                                    v73 = v75;
-                                    a4 = v89;
-                                    v75 = v18;
-                                    rdVector_Copy3(&a3, &tmp1);
-                                    v70 = v16->playSpeed;
-                                }
-                            }
-                        }
-                    }
+                    v9 = 1;
                 }
-                ++v16;
-            }
-
-
-            if ( v70 >= 1.0 || v71 <= 0.0 )
-            {
-                if ( v70 > 1.0 ) {
-                    v50 = 1.0 / v70;
-                    rdVector_Scale3Acc(&a4, v50);
-                    rdVector_Scale3Acc(&a3, v50);
-                }
-            }
-            else
-            {
-                if ( v71 > 1.0 )
+                else if ( v4->field_120 >= (flex_d_t)v13->frameNum )
                 {
-                    v45 = 1.0 / v71;
-                    rdVector_Scale3Acc(&v90, v45);
-                    rdVector_Scale3Acc(&v91, v45);
+                    ++v12;
+                    ++v13;
                 }
-                v46 = 1.0 - v70;
-                rdVector_MultAcc3(&a4, &v90, v46);
-                rdVector_MultAcc3(&a3, &v91, v46);
+                else
+                {
+                    v9 = 1;
+                }
             }
-
-            a3.x = stdMath_NormalizeAngleAcute(a3.x);
-            a3.y = stdMath_NormalizeAngleAcute(a3.y);
-            a3.z = stdMath_NormalizeAngleAcute(a3.z);
-            rdVector_Add3Acc(&a4, &v15->pos);
-            rdVector_Add3Acc(&a3, &v15->rot);
-
-            rdMatrix_Build34(&thing->hierarchyNodeMatrices[v80], &a3, &a4);
-            v61 = &thing->hierarchyNodes2[v80];
-            if ( !rdVector_IsZero3(v61) )
-                rdMatrix_PreRotate34(&thing->hierarchyNodeMatrices[v80], &thing->hierarchyNodes2[v80]);
-            v15++;
+            while ( !v9 );
+            v4->nodes[j] = v12;
         }
     }
+
+    for (v80 = 0; v80 < model->numHierarchyNodes; v80++)
+    {
+        rdHierarchyNode* nodeIter = &model->hierarchyNodes[v80];
+        v75 = 0;
+        v73 = 0;
+        v70 = 0.0;
+        v71 = 0.0;
+        rdVector_Zero3(&a4);
+        rdVector_Zero3(&a3);
+        rdVector_Zero3(&v90);
+        rdVector_Zero3(&v91);
+        for (int j = 0; j < RDPUPPET_MAX_TRACKS; j++)
+        {
+            rdPuppetTrack* trackIter = &puppet->tracks[j];
+            v17 = trackIter->keyframe;
+            if (!v17) {
+                continue;
+            }
+            // Added: lowmem nullptr checks
+            if (!v17->paJoints) {
+                continue;
+            }
+            
+            v18 = (v17->type & nodeIter->type) ? trackIter->highPri : trackIter->lowPri;
+            if (!trackIter->status & 2) {
+                continue;
+            }
+            
+            v19 = nodeIter->idx;
+            v20 = &v17->paJoints[v19]; // overflow in orig? added (moved): v19 < v17->numJoints2, added v20->paAnimEntries nullptr check
+            if (!(v19 < v17->numJoints2 && v20->numAnimEntries && v20->paAnimEntries)) {
+                continue;
+            }
+            
+            if ( v18 >= v73 && (v18 >= v75 || v70 < 1.0) && v19 < v17->numJoints2 )
+            {
+                v21 = trackIter->nodes[v19];
+
+                // Added: prevent overflow
+                if (v21 >= v20->numAnimEntries) {
+                    v21 = v20->numAnimEntries-1;
+                }
+                if (v21 < 0) {
+                    v21 = 0;
+                }
+
+                v23 = trackIter->field_120 - v20->paAnimEntries[v21].frameNum;
+                v24 = &v20->paAnimEntries[v21];
+                v25 = v24->flags;
+                if (v25 & 1)
+                {
+                    rdVector_Copy3(&v89, &v24->pos);
+                    rdVector_MultAcc3(&v89, &v24->vel, v23);
+                }
+                else
+                {
+                    rdVector_Copy3(&v89, &v24->pos);
+                }
+                if (v25 & 2)
+                {
+                    rdVector_Copy3(&tmp1, &v24->orientation);
+                    rdVector_MultAcc3(&tmp1, &v24->angVel, v23);
+                }
+                else
+                {
+                    rdVector_Copy3(&tmp1, &v24->orientation);
+                }
+                rdVector_Sub3Acc(&v89, &nodeIter->pos);
+                rdVector_Sub3Acc(&tmp1, &nodeIter->rot);
+                rdVector_NormalizeAngleAcute3(&tmp1);
+                if (trackIter->playSpeed <= 1.0)
+                {
+                    // Added: Make sure anims don't leak in blending
+                    if (trackIter->playSpeed < 0.0)
+                        trackIter->playSpeed = 0.0;
+
+                    rdVector_Scale3Acc(&v89, trackIter->playSpeed);
+                    rdVector_Scale3Acc(&tmp1, trackIter->playSpeed);
+                }
+                if (v18 == v75)
+                {
+                    rdVector_Add3Acc(&a4, &v89);
+                    rdVector_Add3Acc(&a3, &tmp1);
+                    v70 += trackIter->playSpeed;
+                }
+                else if (v18 <= v75)
+                {
+                    if (v18 <= v73)
+                    {
+                        rdVector_Add3Acc(&v90, &v89);
+                        rdVector_Add3Acc(&v91, &tmp1);
+                        v71 += trackIter->playSpeed;
+                    }
+                    else
+                    {
+                        v90 = v89;
+                        rdVector_Copy3(&v91, &tmp1);
+                        v71 = trackIter->playSpeed;
+                        v73 = v18;
+                    }
+                }
+                else
+                {
+                    v90 = a4;
+                    v91 = a3;
+                    v71 = v70;
+                    v73 = v75;
+                    a4 = v89;
+                    v75 = v18;
+                    rdVector_Copy3(&a3, &tmp1);
+                    v70 = trackIter->playSpeed;
+                }
+            }
+        }
+
+
+        if (v70 >= 1.0 || v71 <= 0.0)
+        {
+            if (v70 > 1.0) {
+                v50 = 1.0 / v70;
+                rdVector_Scale3Acc(&a4, v50);
+                rdVector_Scale3Acc(&a3, v50);
+            }
+        }
+        else
+        {
+            if (v71 > 1.0) {
+                v45 = 1.0 / v71;
+                rdVector_Scale3Acc(&v90, v45);
+                rdVector_Scale3Acc(&v91, v45);
+            }
+            v46 = 1.0 - v70;
+            rdVector_MultAcc3(&a4, &v90, v46);
+            rdVector_MultAcc3(&a3, &v91, v46);
+        }
+
+        rdVector_NormalizeAngleAcute3(&a3);
+        rdVector_Add3Acc(&a4, &nodeIter->pos);
+        rdVector_Add3Acc(&a3, &nodeIter->rot);
+
+        rdMatrix_Build34(&thing->hierarchyNodeMatrices[v80], &a3, &a4);
+        v61 = &thing->hierarchyNodes2[v80];
+        if ( !rdVector_IsZero3(v61) )
+            rdMatrix_PreRotate34(&thing->hierarchyNodeMatrices[v80], &thing->hierarchyNodes2[v80]);
+    }
+
+accumulate_finalize:
     rdThing_AccumulateMatrices(thing, model->hierarchyNodes, matrix);
     thing->frameTrue = rdroid_frameTrue;
 }
@@ -351,7 +373,7 @@ int rdPuppet_ResetTrack(rdPuppet *puppet, int trackNum)
 }
 
 // MOTS altered
-int rdPuppet_UpdateTracks(rdPuppet *puppet, float deltaSeconds)
+int rdPuppet_UpdateTracks(rdPuppet *puppet, flex_t deltaSeconds)
 {
     //return _rdPuppet_UpdateTracks(puppet, deltaSeconds);
     
@@ -362,7 +384,7 @@ int rdPuppet_UpdateTracks(rdPuppet *puppet, float deltaSeconds)
     if (puppet->paused)
         return 0;
 
-    for (uint32_t v2 = 0; v2 < 4; v2++)
+    for (uint32_t v2 = 0; v2 < RDPUPPET_MAX_TRACKS; v2++)
     {
         rdPuppetTrack* track = &puppet->tracks[v2];
         if (!track->status)
@@ -423,7 +445,7 @@ int rdPuppet_AddTrack(rdPuppet *puppet, rdKeyframe *keyframe, int lowPri, int hi
     rdPuppetTrack *newTrack; // edx
 
     v4 = puppet->tracks;
-    for (newTrackIdx = 0; newTrackIdx < 4; newTrackIdx++)
+    for (newTrackIdx = 0; newTrackIdx < RDPUPPET_MAX_TRACKS; newTrackIdx++)
     {
         if ( !puppet->tracks[newTrackIdx].status )
             break;
@@ -471,12 +493,12 @@ int rdPuppet_AddTrack(rdPuppet *puppet, rdKeyframe *keyframe, int lowPri, int hi
     return result;
 }
 
-void rdPuppet_SetCallback(rdPuppet *a1, int trackNum, void *callback)
+void rdPuppet_SetCallback(rdPuppet *a1, int trackNum, rdPuppetTrackCallback_t callback)
 {
     a1->tracks[trackNum].callback = callback;
 }
 
-int rdPuppet_FadeInTrack(rdPuppet *puppet, int trackNum, float speed)
+int rdPuppet_FadeInTrack(rdPuppet *puppet, int trackNum, flex_t speed)
 {
     puppet->tracks[trackNum].status = puppet->tracks[trackNum].status & ~8u | 6;
     if ( speed <= 0.0 )
@@ -491,19 +513,19 @@ int rdPuppet_FadeInTrack(rdPuppet *puppet, int trackNum, float speed)
     }
 }
 
-void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, float a3)
+void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, flex_t a3)
 {
     //_rdPuppet_AdvanceTrack(puppet, trackNum, a3);
     //return;
     
     rdKeyframe *v4; // ecx
     rdPuppetTrack *v5; // esi
-    double v6; // st7
+    flex_d_t v6; // st7
     //unsigned int v11; // ebx
     rdKeyframe *v12; // ecx
     int v20; // [esp+14h] [ebp-8h]
-    float v21; // [esp+18h] [ebp-4h]
-    float v22; // [esp+2Ch] [ebp+10h]
+    flex_t v21; // [esp+18h] [ebp-4h]
+    flex_t v22; // [esp+2Ch] [ebp+10h]
 
     v21 = 0.0;
     v20 = 0;
@@ -512,7 +534,7 @@ void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, float a3)
     if ( !v4 || a3 == 0.0 )
         return;
     v22 = a3 + puppet->tracks[trackNum].field_124;
-    v6 = (double)v4->numFrames;
+    v6 = (flex_d_t)v4->numFrames;
     puppet->tracks[trackNum].field_120 = v22;
 
     if ( v22 >= v6 )
@@ -537,9 +559,9 @@ void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, float a3)
         }
         else
         {
-            v21 = floorf(v22 / v6);
+            v21 = stdMath_Floor(v22 / v6);
             size_t v11 = sizeof(uint32_t) * puppet->rdthing->model3->numHierarchyNodes;
-            puppet->tracks[trackNum].field_120 -= (double)puppet->tracks[trackNum].keyframe->numFrames * v21;
+            puppet->tracks[trackNum].field_120 -= (flex_d_t)puppet->tracks[trackNum].keyframe->numFrames * v21;
             
             // Added: Added in Grim Fandango, bounds checks
             if (puppet->rdthing->model3->numHierarchyNodes < 0x40)
@@ -557,9 +579,9 @@ void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, float a3)
             {
                 for (uint32_t v13 = 0; v13 < v4->numMarkers; v13++)
                 {
-                    if ( v4->markers.marker_float[v13] > (double)puppet->tracks[trackNum].field_120 )
+                    if ( v4->markers.marker_float[v13] > (flex_d_t)puppet->tracks[trackNum].field_120 )
                         break;
-                    if ( v4->markers.marker_float[v13] > (double)puppet->tracks[trackNum].field_124 || puppet->tracks[trackNum].field_124 == 0.0 )
+                    if ( v4->markers.marker_float[v13] > (flex_d_t)puppet->tracks[trackNum].field_124 || puppet->tracks[trackNum].field_124 == 0.0 )
                     {
                         puppet->tracks[trackNum].callback(puppet->rdthing->parentSithThing, trackNum, v4->markers.marker_int[v13]);
                     }
@@ -569,8 +591,8 @@ void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, float a3)
             {
                 for (uint32_t v17 = 0; v17 < v4->numMarkers; v17++)
                 {
-                    if ( v4->markers.marker_float[v17] > (double)puppet->tracks[trackNum].field_124
-                      || v4->markers.marker_float[v17] <= (double)puppet->tracks[trackNum].field_120 )
+                    if ( v4->markers.marker_float[v17] > (flex_d_t)puppet->tracks[trackNum].field_124
+                      || v4->markers.marker_float[v17] <= (flex_d_t)puppet->tracks[trackNum].field_120 )
                     {
                         puppet->tracks[trackNum].callback(puppet->rdthing->parentSithThing, trackNum, v4->markers.marker_int[v17]);
                     }
@@ -600,7 +622,7 @@ void rdPuppet_AdvanceTrack(rdPuppet *puppet, int trackNum, float a3)
     }
 }
 
-int rdPuppet_FadeOutTrack(rdPuppet *puppet, int trackNum, float speed)
+int rdPuppet_FadeOutTrack(rdPuppet *puppet, int trackNum, flex_t speed)
 {
     puppet->tracks[trackNum].status = puppet->tracks[trackNum].status & ~4u | 8;
     if ( speed <= 0.0 )
@@ -615,7 +637,7 @@ int rdPuppet_FadeOutTrack(rdPuppet *puppet, int trackNum, float speed)
     }
 }
 
-void rdPuppet_SetTrackSpeed(rdPuppet *puppet, int trackNum, float speed)
+void rdPuppet_SetTrackSpeed(rdPuppet *puppet, int trackNum, flex_t speed)
 {
     puppet->tracks[trackNum].speed = speed;
 }
@@ -657,7 +679,7 @@ int rdPuppet_RemoveTrack(rdPuppet *puppet, rdThing *rdthing)
 {
     puppet->paused = 0;
     puppet->rdthing = rdthing;
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < RDPUPPET_MAX_TRACKS; i++)
     {
         puppet->tracks[i].field_120 = 0.0;
         puppet->tracks[i].field_124 = 0.0;

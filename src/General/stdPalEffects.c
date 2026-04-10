@@ -78,10 +78,10 @@ stdPalEffect* stdPalEffects_GetEffectPointer(int idx)
 
 int stdPalEffects_RefreshPalette()
 {
-    stdPalEffects_state.field_3C = 1;
-    stdPalEffects_state.field_40 = 1;
-    stdPalEffects_state.field_48 = 1;
-    stdPalEffects_state.field_44 = 1;
+    stdPalEffects_state.bUseFilter = 1;
+    stdPalEffects_state.bUseTint = 1;
+    stdPalEffects_state.bUseFade = 1;
+    stdPalEffects_state.bUseAdd = 1;
     stdPalEffects_state.bEnabled = 1;
     return 1;
 }
@@ -115,7 +115,7 @@ void stdPalEffects_UpdatePalette(const void *palette)
     int32_t v11; // ecx
     int32_t v12; // ecx
     int32_t v13; // ecx
-    double v14; // st7
+    flex_d_t v14; // st7
     int j; // esi
     uint8_t *v16; // edi
     __int64 v17; // rax
@@ -125,7 +125,7 @@ void stdPalEffects_UpdatePalette(const void *palette)
     v18 = 0;
     v2 = 0;
     stdPalEffects_GatherEffects();
-    if ( !stdPalEffects_state.field_3C && !stdPalEffects_state.field_40 && !stdPalEffects_state.field_48 && !stdPalEffects_state.field_44 )
+    if ( !stdPalEffects_state.bUseFilter && !stdPalEffects_state.bUseTint && !stdPalEffects_state.bUseFade && !stdPalEffects_state.bUseAdd)
         return;
     if ( stdPalEffects_state.field_4 )
     {
@@ -143,7 +143,7 @@ void stdPalEffects_UpdatePalette(const void *palette)
                 if ( stdPalEffects_state.bEnabled )
                 {
                     v18 = 1;
-                    stdPalEffects_state.field_3C = 0;
+                    stdPalEffects_state.bUseFilter = 0;
                     goto LABEL_23;
                 }
                 goto LABEL_21;
@@ -167,7 +167,7 @@ void stdPalEffects_UpdatePalette(const void *palette)
         stdPalEffects_state.bEnabled = 1;
         v1 = 1;
 LABEL_21:
-        stdPalEffects_state.field_3C = 0;
+        stdPalEffects_state.bUseFilter = 0;
         goto LABEL_23;
     }
     v5 = stdPalEffects_state.bEnabled;
@@ -195,7 +195,7 @@ LABEL_23:
             stdPalEffects_state.bEnabled = 1;
             v1 = 1;
         }
-        stdPalEffects_state.field_40 = 0;
+        stdPalEffects_state.bUseTint = 0;
     }
     v7 = stdPalEffects_state.effect.add.z;
     v8 = stdPalEffects_state.effect.add.x;
@@ -250,7 +250,7 @@ LABEL_23:
         {
             v18 = 1;
         }
-        stdPalEffects_state.field_44 = 0;
+        stdPalEffects_state.bUseAdd = 0;
     }
     if ( stdPalEffects_state.field_10 )
     {
@@ -266,17 +266,17 @@ LABEL_23:
             v14 = stdPalEffects_state.effect.fade;
             for ( j = 0; j < 256; ++j )
             {
-                stdPalEffects_palette[j].r = (__int64)((double)(uint8_t)stdPalEffects_palette[j].r * v14 - -0.5);
+                stdPalEffects_palette[j].r = (__int64)((flex_d_t)(uint8_t)stdPalEffects_palette[j].r * v14 - -0.5);
                 v16 = &stdPalEffects_palette[j].b;
-                stdPalEffects_palette[j].g = (__int64)((double)(uint8_t)stdPalEffects_palette[j].g * v14 - -0.5);
-                v17 = (__int64)((double)(uint8_t)stdPalEffects_palette[j].b * v14 - -0.5);
+                stdPalEffects_palette[j].g = (__int64)((flex_d_t)(uint8_t)stdPalEffects_palette[j].g * v14 - -0.5);
+                v17 = (__int64)((flex_d_t)(uint8_t)stdPalEffects_palette[j].b * v14 - -0.5);
                 *v16 = v17;
             }
             v8 = stdPalEffects_state.effect.add.x;
             v1 = 1;
             stdPalEffects_state.bEnabled = 1;
         }
-        stdPalEffects_state.field_48 = 0;
+        stdPalEffects_state.bUseFade = 0;
     }
     if ( v1 )
     {
@@ -310,130 +310,138 @@ LABEL_72:
 
 void stdPalEffects_GatherEffects()
 {
-    uint32_t v0; // ebx
-    double v1; // st7
-    double v2; // st6
-    int v3; // edi
-    int v4; // esi
-    int v5; // edx
-    stdPalEffectRequest* v6; // ecx
-    double v7; // st5
-    stdPalEffect v8; // [esp+10h] [ebp-28h] BYREF
+    uint32_t effectRequestCounter; // ebx
+    flex_d_t tintB; // st7
+    flex_d_t tintG; // st6
+    int addB; // edi
+    int addG; // esi
+    int addR; // edx
+    stdPalEffectRequest* pEffectReq; // ecx
+    flex_d_t tintR; // st5
+    stdPalEffect palEffect; // [esp+10h] [ebp-28h] BYREF
 
-    v0 = 0;
-    _memset(&v8, 0, sizeof(v8));
-    v8.fade = 1.0;
+    effectRequestCounter = 0;
+    _memset(&palEffect, 0, sizeof(palEffect));
+    palEffect.fade = 1.0;
+
     if ( stdPalEffects_numEffectRequests )
     {
-        v1 = v8.tint.z;
-        v2 = v8.tint.y;
-        v3 = v8.add.z;
-        v4 = v8.add.y;
-        v5 = v8.add.x;
-        v6 = &stdPalEffects_aEffects[0];
-        v7 = v8.tint.x;
+        tintB = palEffect.tint.z;
+        tintG = palEffect.tint.y;
+        tintR = palEffect.tint.x;
+        addB = palEffect.add.z;
+        addG = palEffect.add.y;
+        addR = palEffect.add.x;
+        pEffectReq = &stdPalEffects_aEffects[0];
         do
         {
-            if ( v6->isValid )
+            if ( pEffectReq->isValid )
             {
-                if ( v6->effect.filter.x )
-                    v8.filter.x = 1;
-                if ( v6->effect.filter.y )
-                    v8.filter.y = 1;
-                if ( v6->effect.filter.z )
-                    v8.filter.z = 1;
-                v7 = v7 + v6->effect.tint.x;
-                v5 += v6->effect.add.x;
-                v2 = v2 + v6->effect.tint.y;
-                v4 += v6->effect.add.y;
-                v3 += v6->effect.add.z;
-                v1 = v1 + v6->effect.tint.z;
-                if ( v8.fade >= (double)v6->effect.fade )
-                    v8.fade = v6->effect.fade;
-                ++v0;
+                if ( pEffectReq->effect.filter.x )
+                    palEffect.filter.x = 1;
+
+                if ( pEffectReq->effect.filter.y )
+                    palEffect.filter.y = 1;
+
+                if ( pEffectReq->effect.filter.z )
+                    palEffect.filter.z = 1;
+
+                tintR += pEffectReq->effect.tint.x;
+                tintG += pEffectReq->effect.tint.y;
+                tintB += pEffectReq->effect.tint.z;
+                
+                addR += pEffectReq->effect.add.x;
+                addG += pEffectReq->effect.add.y;
+                addB += pEffectReq->effect.add.z;
+                
+                if ( pEffectReq->effect.fade < palEffect.fade )
+                    palEffect.fade = pEffectReq->effect.fade;
+                
+                ++effectRequestCounter;
             }
-            ++v6;
+            ++pEffectReq;
         }
-        while ( v0 < stdPalEffects_numEffectRequests );
-        v8.tint.z = v1;
-        v8.tint.y = v2;
-        v8.tint.x = v7;
-        v8.add.z = v3;
-        v8.add.y = v4;
-        v8.add.x = v5;
+        while ( effectRequestCounter < stdPalEffects_numEffectRequests );
+        palEffect.tint.z = tintB;
+        palEffect.tint.y = tintG;
+        palEffect.tint.x = tintR;
+        palEffect.add.z = addB;
+        palEffect.add.y = addG;
+        palEffect.add.x = addR;
     }
     else
     {
-        v1 = v8.tint.z;
-        v2 = v8.tint.y;
-        v3 = v8.add.z;
-        v4 = v8.add.y;
-        v5 = v8.add.x;
-        v7 = v8.tint.x;
+        tintB = palEffect.tint.z;
+        tintG = palEffect.tint.y;
+        addB = palEffect.add.z;
+        addG = palEffect.add.y;
+        addR = palEffect.add.x;
+        tintR = palEffect.tint.x;
     }
-    if ( v8.filter.x != stdPalEffects_state.effect.filter.x
-      || v8.filter.y != stdPalEffects_state.effect.filter.y
-      || v8.filter.z != stdPalEffects_state.effect.filter.z )
-    {
-        stdPalEffects_state.field_3C = 1;
-    }
-    if ( v7 != stdPalEffects_state.effect.tint.x || v2 != stdPalEffects_state.effect.tint.y || v1 != stdPalEffects_state.effect.tint.z )
-        stdPalEffects_state.field_40 = 1;
-    if ( v5 != stdPalEffects_state.effect.add.x || v4 != stdPalEffects_state.effect.add.y || v3 != stdPalEffects_state.effect.add.z )
-        stdPalEffects_state.field_44 = 1;
-    if ( v8.fade != stdPalEffects_state.effect.fade )
-        stdPalEffects_state.field_48 = 1;
-    _memcpy(&stdPalEffects_state.effect, &v8, sizeof(stdPalEffects_state.effect));
+
+    if ( palEffect.filter.x != stdPalEffects_state.effect.filter.x || palEffect.filter.y != stdPalEffects_state.effect.filter.y || palEffect.filter.z != stdPalEffects_state.effect.filter.z )
+        stdPalEffects_state.bUseFilter = 1;
+
+    if ( tintR != stdPalEffects_state.effect.tint.x || tintG != stdPalEffects_state.effect.tint.y || tintB != stdPalEffects_state.effect.tint.z )
+        stdPalEffects_state.bUseTint = 1;
+
+    if ( addR != stdPalEffects_state.effect.add.x || addG != stdPalEffects_state.effect.add.y || addB != stdPalEffects_state.effect.add.z )
+        stdPalEffects_state.bUseAdd = 1;
+
+    if ( palEffect.fade != stdPalEffects_state.effect.fade )
+        stdPalEffects_state.bUseFade = 1;
+
+    _memcpy(&stdPalEffects_state.effect, &palEffect, sizeof(stdPalEffects_state.effect));
 }
 
 // setunk
 
-void stdPalEffects_SetFilter(int idx, int a2, int a3, int a4)
+void stdPalEffects_SetFilter(int idx, int r, int g, int b)
 {
-    stdPalEffects_aEffects[idx].effect.filter.x = a2;
-    stdPalEffects_aEffects[idx].effect.filter.y = a3;
-    stdPalEffects_aEffects[idx].effect.filter.z = a4;
+    stdPalEffects_aEffects[idx].effect.filter.x = r;
+    stdPalEffects_aEffects[idx].effect.filter.y = g;
+    stdPalEffects_aEffects[idx].effect.filter.z = b;
 }
 
-void stdPalEffects_SetTint(int idx, float a2, float a3, float a4)
+void stdPalEffects_SetTint(int idx, flex_t r, flex_t g, flex_t b)
 {
-    stdPalEffects_aEffects[idx].effect.tint.x = a2;
-    stdPalEffects_aEffects[idx].effect.tint.y = a3;
-    stdPalEffects_aEffects[idx].effect.tint.z = a4;
+    stdPalEffects_aEffects[idx].effect.tint.x = r;
+    stdPalEffects_aEffects[idx].effect.tint.y = g;
+    stdPalEffects_aEffects[idx].effect.tint.z = b;
 }
 
-void stdPalEffects_SetAdd(int idx, int a2, int a3, int a4)
+void stdPalEffects_SetAdd(int idx, int r, int g, int b)
 {
-    stdPalEffects_aEffects[idx].effect.add.x = a2;
-    stdPalEffects_aEffects[idx].effect.add.y = a3;
-    stdPalEffects_aEffects[idx].effect.add.z = a4;
+    stdPalEffects_aEffects[idx].effect.add.x = r;
+    stdPalEffects_aEffects[idx].effect.add.y = g;
+    stdPalEffects_aEffects[idx].effect.add.z = b;
 }
 
-void stdPalEffects_SetFade(int idx, float fade)
+void stdPalEffects_SetFade(int idx, flex_t fade)
 {
     stdPalEffects_aEffects[idx].effect.fade = fade;
 }
 
 // ApplyFilter
 
-void stdPalEffects_ApplyTint(rdColor24 *aPalette, float tintR, float tintG, float tintB)
+void stdPalEffects_ApplyTint(rdColor24 *aPalette, flex_t tintR, flex_t tintG, flex_t tintB)
 {
-    double v4; // st7
-    double v5; // st5
-    double v7; // rt0
-    double v8; // st5
-    double v9; // rt2
-    double v10; // st5
-    double v11; // st7
+    flex_d_t v4; // st7
+    flex_d_t v5; // st5
+    flex_d_t v7; // rt0
+    flex_d_t v8; // st5
+    flex_d_t v9; // rt2
+    flex_d_t v10; // st5
+    flex_d_t v11; // st7
     char *v12; // esi
     int v13; // ebx
-    double v14; // st5
-    double v15; // st6
+    flex_d_t v14; // st5
+    flex_d_t v15; // st6
     int v16; // eax
     signed int v17; // eax
     signed int v18; // eax
-    float aPalettea; // [esp+4h] [ebp+4h]
-    float aPaletteb; // [esp+4h] [ebp+4h]
+    flex_t aPalettea; // [esp+4h] [ebp+4h]
+    flex_t aPaletteb; // [esp+4h] [ebp+4h]
 
     v4 = tintR * 0.5;
     v5 = tintB * 0.5;
@@ -450,7 +458,7 @@ void stdPalEffects_ApplyTint(rdColor24 *aPalette, float tintR, float tintG, floa
     v15 = tintG - v9;
     do
     {
-        v16 = (uint8_t)*(v12 - 2) + (unsigned int)(__int64)((double)(uint8_t)*(v12 - 2) * v11 - -0.5);
+        v16 = (uint8_t)*(v12 - 2) + (unsigned int)(__int64)((flex_d_t)(uint8_t)*(v12 - 2) * v11 - -0.5); // FLEXTODO
         if ( v16 < 0 )
         {
             v16 = 0;
@@ -460,7 +468,7 @@ void stdPalEffects_ApplyTint(rdColor24 *aPalette, float tintR, float tintG, floa
             v16 = 0xFF;
         }
         *(v12 - 2) = v16;
-        v17 = (uint8_t)*(v12 - 1) + (unsigned int)(__int64)((double)(uint8_t)*(v12 - 1) * v15 - -0.5);
+        v17 = (uint8_t)*(v12 - 1) + (unsigned int)(__int64)((flex_d_t)(uint8_t)*(v12 - 1) * v15 - -0.5); // FLEXTODO
         if ( v17 < 0 )
         {
             v17 = 0;
@@ -470,7 +478,7 @@ void stdPalEffects_ApplyTint(rdColor24 *aPalette, float tintR, float tintG, floa
             v17 = 0xFF;
         }
         *(v12 - 1) = v17;
-        v18 = (uint8_t)*v12 + (unsigned int)(__int64)((double)(uint8_t)*v12 * v14 - -0.5);
+        v18 = (uint8_t)*v12 + (unsigned int)(__int64)((flex_d_t)(uint8_t)*v12 * v14 - -0.5);
         if ( v18 < 0 )
         {
             v18 = 0;
@@ -486,5 +494,62 @@ void stdPalEffects_ApplyTint(rdColor24 *aPalette, float tintR, float tintG, floa
     while ( v13 );
 }
 
-// ApplyAdd
-// ApplyFade
+void stdPalEffects_SetPaletteFunc(stdPalEffectSetPaletteFunc_t func)
+{
+    stdPalEffects_setPalette = func;
+}
+
+void stdPalEffects_SetStateBools(int a1, int a2, int a3, int a4)
+{
+    stdPalEffects_state.field_4 = a1;
+    stdPalEffects_state.field_8 = a2;
+    stdPalEffects_state.field_C = a3;
+    stdPalEffects_state.field_10 = a4;
+}
+
+void stdPalEffects_ApplyFilter(rdColor24 *aPalette, int filterR, int filterG, int filterB)
+{
+    uint8_t *p = (uint8_t *)aPalette;
+    for (int i = 0; i < 0x300; i += 3)
+    {
+        if ( filterR == 0 )
+            p[i] = p[i] >> 2;
+        if ( filterG == 0 )
+            p[i + 1] = p[i + 1] >> 2;
+        if ( filterB == 0 )
+            p[i + 2] = p[i + 2] >> 2;
+    }
+}
+
+void stdPalEffects_ApplyAdd(rdColor24 *aPalette, int addR, int addG, int addB)
+{
+    uint8_t *p = (uint8_t *)aPalette;
+    for (int i = 0; i < 0x300; i += 3)
+    {
+        int r = addR + p[i];
+        if ( r < 0 ) r = 0;
+        else if ( r > 255 ) r = 255;
+        p[i] = (uint8_t)r;
+
+        int g = addG + p[i + 1];
+        if ( g < 0 ) g = 0;
+        else if ( g > 255 ) g = 255;
+        p[i + 1] = (uint8_t)g;
+
+        int b = addB + p[i + 2];
+        if ( b < 0 ) b = 0;
+        else if ( b > 255 ) b = 255;
+        p[i + 2] = (uint8_t)b;
+    }
+}
+
+void stdPalEffects_ApplyFade(rdColor24 *aPalette, flex_t fade)
+{
+    uint8_t *p = (uint8_t *)aPalette;
+    for (int i = 0; i < 0x300; i += 3)
+    {
+        p[i]     = (__int64)((flex_d_t)p[i] * fade);
+        p[i + 1] = (__int64)((flex_d_t)p[i + 1] * fade);
+        p[i + 2] = (__int64)((flex_d_t)p[i + 2] * fade);
+    }
+}

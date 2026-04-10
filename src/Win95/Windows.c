@@ -22,6 +22,10 @@
 #include <SDL.h>
 #endif
 
+#ifdef TARGET_TWL
+#include <nds.h>
+#endif
+
 static int Windows_bInitted;
 static uint32_t Windows_DplayGuid[4] = {0x0BF0613C0, 0x11D0DE79, 0x0A000C999, 0x4BAD7624};
 static char Windows_cpu_info[0x4c] = { 0 };
@@ -35,15 +39,18 @@ void Windows_Startup()
 {
     char cdPath[128]; // [esp+0h] [ebp-80h] BYREF
 
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     Windows_bInitted = 1;
     WinIdk_SetDplayGuid(Windows_DplayGuid);
     WinIdk_detect_cpu(Windows_cpu_info);
 
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && defined(WIN32)
     wuRegistry_GetString("CD Path", cdPath, 128, Windows_cdpath_default); // ????
 #else
     memset(cdPath, 0, sizeof(cdPath));
 #endif
+
     jkRes_LoadCd(cdPath);
     Windows_installType = wuRegistry_GetInt("InstallType", 9);
     Window_AddMsgHandler(Windows_DefaultHandler);
@@ -51,6 +58,8 @@ void Windows_Startup()
 
 void Windows_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     Window_RemoveMsgHandler(Windows_DefaultHandler);
     wuRegistry_Shutdown();
 
@@ -70,7 +79,7 @@ void Windows_Shutdown()
 
 int Windows_InitWindow()
 {
-#ifdef SDL2_RENDER
+#if defined(SDL2_RENDER) || defined(TARGET_TWL)
     return 1;
 #endif
     HDC v2; // esi
@@ -205,12 +214,14 @@ int Windows_GdiHandler(HWND a1, UINT msg, WPARAM wParam, HWND a4, LRESULT *a5)
                 v5 = 1;
                 *a5 = 1;
             }
+#ifdef QUAKE_CONSOLE
             else if ( jkQuakeConsole_bOpen ) // Added: Quake console
             {
                 jkQuakeConsole_SendInput(wParam, 1);
                 v5 = 1;
                 *a5 = 1;
             }
+#endif
             break;
         default:
             break;
@@ -254,6 +265,7 @@ int Windows_ErrorMsgboxWide(const char *a1, ...)
 #else
     v1 = jkStrings_GetUniStringWithFallback(a1);
     jk_vsnwprintf(Text, 0x400u, v1, va);
+    va_end(va);
     //v4 = jkStrings_GetUniStringWithFallback("ERROR");
     stdString_WcharToChar(tmp, Text, 1024);
 
@@ -283,6 +295,7 @@ int Windows_ErrorMsgbox(const char *a1, ...)
 #else
     v1 = jkStrings_GetUniStringWithFallback(a1);
     jk_vsnwprintf(Text, 0x200u, v1, va);
+    va_end(va);
     //v4 = jkStrings_GetUniStringWithFallback("ERROR");
 
     stdString_WcharToChar(tmp, Text, 512);
@@ -304,14 +317,14 @@ void Windows_GameErrorMsgbox(const char *a1, ...)
 
     va_start(va, a1);
 
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && defined(WIN32)
     v1 = jkStrings_GetUniStringWithFallback(a1);
     jk_vsnwprintf(Text, 0x200u, v1, va);
     v3 = jkStrings_GetUniStringWithFallback("ERROR");
     stdDisplay_ClearMode();
     v2 = stdGdi_GetHwnd();
     jk_MessageBoxW(v2, Text, v3, 0x10u);
-#else
+#elif defined(SDL2_RENDER)
     vsnprintf(tmp, 0x200u, a1, va);
     jk_printf("FATAL ERROR: %s\n", tmp);
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", tmp, NULL);
@@ -319,6 +332,20 @@ void Windows_GameErrorMsgbox(const char *a1, ...)
 #if !defined(ARCH_WASM) && !defined(TARGET_ANDROID)
     InstallHelper_CheckRequiredAssets(1);
 #endif
+#else
+    vsnprintf(tmp, 0x200u, a1, va);
+    va_end(va);
+    jk_printf("FATAL ERROR: %s\n", tmp);
+    while(1);
+#endif
+#ifdef TARGET_TWL
+    while (1) {
+        scanKeys();
+        u16 keys_held = keysHeld();
+        if (!!(keys_held & KEY_A)) {
+            break;
+        }
+    }
 #endif
     jk_exit(1);
 }

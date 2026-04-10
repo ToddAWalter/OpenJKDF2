@@ -1,11 +1,11 @@
 #ifndef _STDFILEUTIL_H
 #define _STDFILEUTIL_H
 
+#include "types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "types.h"
 
 #define stdFileUtil_NewFind_ADDR (0x00431740)
 #define stdFileUtil_DisposeFind_ADDR (0x004317E0)
@@ -40,14 +40,19 @@ typedef struct stdFileSearchResult
     int time_write;
 } stdFileSearchResult;
 
-stdFileSearch* stdFileUtil_NewFind(char *path, int a2, char *extension);
+stdFileSearch* stdFileUtil_NewFind(const char *path, int a2, const char *extension);
 int stdFileUtil_FindNext(stdFileSearch *a1, stdFileSearchResult *a2);
 void stdFileUtil_DisposeFind(stdFileSearch *search);
+void stdFileUtil_FindReset(stdFileSearch *search);
+int stdFileUtil_FindQuick(const char *path, int type, const char *extension, stdFileSearchResult *result);
+int stdFileUtil_CountMatches(const char *path, int type, const char *extension);
+int stdFileUtil_DirExists(const char *path);
+void stdFileUtil_RmDir(const char *path);
 
 int stdFileUtil_DelFile(char* lpFileName);
 int stdFileUtil_Deltree(const char* lpPathName);
 
-#ifdef LINUX
+#if defined(PLATFORM_POSIX) && !defined(WIN32)
 int stdFileUtil_MkDir(char* path);
 #else
 //static int (*stdFileUtil_MkDir)(char* lpPathName) = (void*)stdFileUtil_MkDir_ADDR;

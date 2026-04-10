@@ -8,6 +8,7 @@
 #include "Gameplay/sithEvent.h"
 #include "General/stdString.h"
 #include "General/stdStrTable.h"
+#include "Win95/std.h"
 #include "Main/jkDev.h"
 #include "Main/jkEpisode.h"
 #include "Main/jkRes.h"
@@ -63,6 +64,8 @@ int jkDSS_005aec8c = 0;
 
 int jkDSS_Startup()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+    
     sithComm_SetMsgFunc(DSS_JKENABLESABER, jkDSS_ProcessJKEnableSaber);
     sithComm_SetMsgFunc(DSS_SABERINFO3, jkDSS_ProcessSetSaberInfo2);
     sithComm_SetMsgFunc(DSS_JKSETWEAPONMESH, jkDSS_ProcessJKSetWeaponMesh);
@@ -81,7 +84,9 @@ int jkDSS_Startup()
         sithComm_SetMsgFunc(DSS_SABERINFO2, jkDSS_ProcessSetSaberInfo);
     }
     sithComm_SetMsgFunc(DSS_SETTEAM, jkDSS_ProcessSetTeam);
+#if !defined(TARGET_NO_MULTIPLAYER_MENUS)
     sithComm_SetMsgFunc(DSS_JOINING, jkGuiMultiplayer_CogMsgHandleJoining);
+#endif
     sithGamesave_Setidk(jkDSS_playerconfig_idksync, jkDSS_player_thingsidkfunc, jkDSS_nullsub_2, jkDSS_Write, jkDSS_Load);
     sithMulti_SetHandleridk(jkDSS_idk4);
 
@@ -94,7 +99,7 @@ int jkDSS_Startup()
     return 1;
 }
 
-int jkDSS_JKM1(int unused1, sithEventInfo* unused2)
+int jkDSS_JKM1(int32_t unused1, sithEventInfo* unused2)
 {
     if (jkDSS_005aec8c != 0) {
         jkDSS_SendSaberInfo_alt_Mots(sithPlayer_pLocalPlayerThing,jkGuiMultiplayer_mpcInfo.model,jkGuiMultiplayer_mpcInfo.soundClass,jkGuiMultiplayer_mpcInfo.sideMat,jkGuiMultiplayer_mpcInfo.tipMat,jkGuiMultiplayer_mpcInfo.personality);
@@ -104,7 +109,7 @@ int jkDSS_JKM1(int unused1, sithEventInfo* unused2)
 
 void jkDSS_Shutdown()
 {
-    ;
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
 }
 
 // MOTS altered
@@ -116,7 +121,7 @@ int jkDSS_idk4()
         {
             if ( sithMulti_leaveJoinType )
             {
-                sithComm_netMsgTmp.pktData[0] = jkEpisode_idk1(&jkEpisode_mLoad)->level;
+                sithComm_netMsgTmp.pktData[0] = jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad)->level;
                 sithComm_netMsgTmp.netMsg.flag_maybe = 0;
                 sithComm_netMsgTmp.netMsg.cogMsgId = DSS_ENDLEVEL;
                 sithComm_netMsgTmp.netMsg.msg_size = 4;
@@ -212,7 +217,7 @@ void jkDSS_nullsub_2()
 void jkDSS_Write()
 {
     stdConffile_Write(jkRes_episodeGobName, 32);
-    stdConffile_Write((const char*)&jkEpisode_mLoad.field_8, 4);
+    stdConffile_Write((const char*)&jkEpisode_mLoad.currentEpisodeEntryIdx, 4);
 }
 
 void jkDSS_Load()
@@ -221,7 +226,7 @@ void jkDSS_Load()
 
     stdConffile_Read(a1, 32);
     jkRes_LoadGob(a1);
-    stdConffile_Read(&jkEpisode_mLoad.field_8, 4);
+    stdConffile_Read(&jkEpisode_mLoad.currentEpisodeEntryIdx, 4);
 }
 
 int jkDSS_wrap_SendSaberInfo_alt()
@@ -296,7 +301,12 @@ void jkDSS_SendSetSaberInfoMots(sithThing *thing, int personality)
 
     NETMSG_PUSHS32(thing->thing_id);
     NETMSG_PUSHSTR(thing->rdthing.model3->filename, 0x20);
+#ifdef SITH_DEBUG_STRUCT_NAMES
     NETMSG_PUSHSTR(thing->soundclass->snd_fname, 0x20);
+#else
+    const char* dummy = "ky.snd";
+    NETMSG_PUSHSTR(dummy, 0x20);
+#endif
     NETMSG_PUSHSTR(thing->playerInfo->polyline.edgeFace.material->mat_fpath, 0x20);
     NETMSG_PUSHSTR(thing->playerInfo->polyline.tipFace.material->mat_fpath, 0x20);
     NETMSG_PUSHS16(personality);
@@ -389,9 +399,20 @@ void jkDSS_SendSetSaberInfo(sithThing *thing)
 
     NETMSG_PUSHS32(thing->thing_id);
     NETMSG_PUSHSTR(thing->rdthing.model3->filename, 0x20);
+#ifdef SITH_DEBUG_STRUCT_NAMES
     NETMSG_PUSHSTR(thing->soundclass->snd_fname, 0x20);
+#else
+    const char* dummy = "ky.snd";
+    NETMSG_PUSHSTR(dummy, 0x20);
+#endif
+
+#ifdef SITH_DEBUG_STRUCT_NAMES
     NETMSG_PUSHSTR(thing->playerInfo->polyline.edgeFace.material->mat_fpath, 0x20);
     NETMSG_PUSHSTR(thing->playerInfo->polyline.tipFace.material->mat_fpath, 0x20);
+#else
+    NETMSG_PUSHSTR(stdFileFromPath(thing->playerInfo->polyline.edgeFace.material->mat_fpath), 0x20);
+    NETMSG_PUSHSTR(stdFileFromPath(thing->playerInfo->polyline.tipFace.material->mat_fpath), 0x20);
+#endif
 
     NETMSG_END(DSS_SABERINFO2);
     
@@ -434,10 +455,8 @@ int jkDSS_ProcessSetSaberInfo(sithCogMsg *msg)
             return 1;
         if ( (sithNet_MultiModeFlags & MULTIMODEFLAG_100) != 0 )
         {
-            _strncpy(model_3do_fname, jkDSS_aKyTeamModels[v11->teamNum], 0x1Fu);
-            model_3do_fname[31] = 0;
-            _strncpy(v14, "ky.snd", 0x1Fu);
-            v14[31] = 0;
+            stdString_SafeStrCopy(model_3do_fname, jkDSS_aKyTeamModels[v11->teamNum], 32);
+            stdString_SafeStrCopy(v14, "ky.snd", 32);
         }
     }
     rdModel3* v5 = sithModel_LoadEntry(model_3do_fname, 1);
@@ -491,9 +510,9 @@ int jkDSS_ProcessJKEnableSaber(sithCogMsg *msg)
     if ( type != SITH_THING_PLAYER && type != SITH_THING_ACTOR )
         return 0;
 
-    float arg1 = NETMSG_POPF32();
-    float arg2 = NETMSG_POPF32();
-    float arg3 = NETMSG_POPF32();
+    flex32_t arg1 = NETMSG_POPF32();
+    flex32_t arg2 = NETMSG_POPF32();
+    flex32_t arg3 = NETMSG_POPF32();
 
     jkSaber_Enable(pThing, arg1, arg2, arg3);
     return 1;
@@ -663,10 +682,10 @@ int jkDSS_ProcessSetSaberInfo2(sithCogMsg *msg)
     playerInfo->maxTwinkles = NETMSG_POPS16();
     playerInfo->twinkleSpawnRate = NETMSG_POPS16();
     playerInfo->length = NETMSG_POPF32();
-    float baseRadius = NETMSG_POPF32();
+    flex32_t baseRadius = NETMSG_POPF32();
     if ( baseRadius != 0.0 )
     {
-        float tipRadius = NETMSG_POPF32();
+        flex32_t tipRadius = NETMSG_POPF32();
         
         NETMSG_POPSTR(material_side_fname, 0x20);
         NETMSG_POPSTR(material_tip_fname, 0x20);
@@ -1011,7 +1030,7 @@ int jkDSS_Processx36_setwaggle(sithCogMsg *msg)
     return 1;
 }
 
-void jkDSS_SendJKPrintUniString(int a1, unsigned int a2)
+void jkDSS_SendJKPrintUniString(int a1, uint32_t a2)
 {
     int v2; // eax
 
@@ -1063,7 +1082,7 @@ void jkDSS_SendEndLevel()
 {
     NETMSG_START;
 
-    NETMSG_PUSHS32(jkEpisode_idk1(&jkEpisode_mLoad)->level);
+    NETMSG_PUSHS32(jkEpisode_GetCurrentEpisodeEntry(&jkEpisode_mLoad)->level);
     NETMSG_END(DSS_ENDLEVEL);
 
     // lol
@@ -1110,9 +1129,9 @@ void jkDSS_SendSetTeam(int16_t teamNum)
 // MOTS altered
 int jkDSS_ProcessSetTeam(sithCogMsg *pMsg)
 {
-    unsigned int playerIdx; // edx
-    unsigned int teamNum; // ecx
-    unsigned int v4; // esi
+    uint32_t playerIdx; // edx
+    uint32_t teamNum; // ecx
+    uint32_t v4; // esi
     rdModel3 *v5; // eax
 
     int personality = -1;

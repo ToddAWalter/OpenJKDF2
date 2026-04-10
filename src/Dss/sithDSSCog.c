@@ -7,7 +7,7 @@
 #include "Devices/sithComm.h"
 #include "Main/Main.h"
 
-int sithDSSCog_SendSendTrigger(sithCog *a1, int a2, int a3, int a4, int a5, int a6, int a7, float param0, float param1, float param2, float param3, int a11)
+int sithDSSCog_SendSendTrigger(sithCog *a1, int a2, int a3, int a4, int a5, int a6, int a7, flex32_t param0, flex32_t param1, flex32_t param2, flex32_t param3, int a11)
 {
     int v12; // edi
     sithThing *v13; // eax
@@ -60,10 +60,10 @@ int sithDSSCog_ProcessSendTrigger(sithCogMsg *in_netMsg)
     sithThing *v7; // eax
     int msgid; // eax
     sithThing *v12; // eax
-    float param3; // [esp+10h] [ebp-1Ch]
-    float param2; // [esp+14h] [ebp-18h]
-    float param1; // [esp+18h] [ebp-14h]
-    float param0; // [esp+1Ch] [ebp-10h]
+    flex32_t param3; // [esp+10h] [ebp-1Ch]
+    flex32_t param2; // [esp+14h] [ebp-18h]
+    flex32_t param1; // [esp+18h] [ebp-14h]
+    flex32_t param0; // [esp+1Ch] [ebp-10h]
     sithCog *cog; // [esp+20h] [ebp-Ch]
     int linkId; // [esp+28h] [ebp-4h]
     int sourceType; // [esp+30h] [ebp+4h]
@@ -153,9 +153,23 @@ int sithDSSCog_SendSyncCog(sithCog *cog, int sendto_id, int mpFlags)
             }
             else if ( sym->val.type == COG_VARTYPE_VECTOR )
             {
+#ifndef COG_COMPRESS_VAR_SIZE
                 NETMSG_PUSHF32(sym->val.dataAsFloat[0]);
                 NETMSG_PUSHF32(sym->val.dataAsFloat[1]);
                 NETMSG_PUSHF32(sym->val.dataAsFloat[2]);
+#else
+                if (sym->val.dataAsPtrs[0]){
+                    cog_flex_t* ptr = (cog_flex_t*)sym->val.dataAsPtrs[0];
+                    NETMSG_PUSHF32(ptr[0]);
+                    NETMSG_PUSHF32(ptr[1]);
+                    NETMSG_PUSHF32(ptr[2]);
+                }
+                else {
+                    NETMSG_PUSHF32(0.0f);
+                    NETMSG_PUSHF32(0.0f);
+                    NETMSG_PUSHF32(0.0f);
+                }
+#endif
             }
             else if (Main_bMotsCompat && sym->val.type == COG_VARTYPE_STR)
             {
@@ -225,9 +239,23 @@ int sithDSSCog_ProcessSyncCog(sithCogMsg *msg)
             }
             else if ( sym->val.type == COG_VARTYPE_VECTOR )
             {
+#ifndef COG_COMPRESS_VAR_SIZE
                 sym->val.dataAsFloat[0] = NETMSG_POPF32();
                 sym->val.dataAsFloat[1] = NETMSG_POPF32();
                 sym->val.dataAsFloat[2] = NETMSG_POPF32();
+#else
+                if (sym->val.dataAsPtrs[0]){
+                    cog_flex_t* ptr = (cog_flex_t*)sym->val.dataAsPtrs[0];
+                    ptr[0] = NETMSG_POPF32();
+                    ptr[1] = NETMSG_POPF32();
+                    ptr[2] = NETMSG_POPF32();
+                }
+                else {
+                    NETMSG_POPF32();
+                    NETMSG_POPF32();
+                    NETMSG_POPF32();
+                }
+#endif
             }
             else if (Main_bMotsCompat && sym->val.type == COG_VARTYPE_STR)
             {

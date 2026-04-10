@@ -1,5 +1,7 @@
 #include "stdStrTable.h"
 
+#include <wchar.h>
+#include <wctype.h>
 #include "stdPlatform.h"
 #include "General/stdString.h"
 #include "jk.h"
@@ -69,7 +71,7 @@ int stdStrTable_Load(stdStrTable *strtable, char *fpath)
         return 0;
     }
     strtable->numMsgs = numMsgs;
-    strtable->msgs = std_pHS->alloc(sizeof(stdStrMsg) * numMsgs);
+    strtable->msgs = (stdStrMsg*)std_pHS->alloc(sizeof(stdStrMsg) * numMsgs);
     if ( !strtable->msgs )
         std_pHS->assert("Out of memory--cannot load string table", ".\\General\\stdStrTable.c", 120);
     _memset(strtable->msgs, 0, sizeof(stdStrMsg) * numMsgs);
@@ -237,10 +239,65 @@ wchar_t* stdStrTable_GetUniString(stdStrTable* pTable, const char *key)
     return result;
 }
 
-wchar_t* stdStrTable_GetStringWithFallback(stdStrTable* pTable, char *key)
+int stdStrTable_ParseLine(stdFile_t fhand, char *buf, int bufLen)
+{
+    int found;
+    char *p;
+    char tmpBuf[64];
+
+    found = 0;
+    do
+    {
+        std_pHS->fileGets(fhand, buf, bufLen);
+        if ( !_strchr(buf, '\n') )
+        {
+            do
+                std_pHS->fileGets(fhand, tmpBuf, 64);
+            while ( !_strchr(tmpBuf, '\n') );
+        }
+        for ( p = buf; __isspace(*p); ++p )
+            ;
+        if ( *p != '#' && *p && *p != '\r' && *p != '\n' )
+            found = 1;
+    }
+    while ( !found );
+    return 1;
+}
+
+int stdStrTable_ParseUniLine(stdFile_t fhand, wchar_t *buf)
+{
+    int found;
+    wchar_t *p;
+    wchar_t tmpBuf[64];
+
+    found = 0;
+    do
+    {
+        std_pHS->fileGetws(fhand, buf, 10);
+        if ( !__wcschr(buf, L'\n') )
+        {
+            do
+                std_pHS->fileGetws(fhand, tmpBuf, 10);
+            while ( !__wcschr(tmpBuf, L'\n') );
+        }
+        for ( p = buf; iswspace(*p); ++p )
+            ;
+        if ( *p != L'#' && *p && *p != L'\r' && *p != L'\n' )
+            found = 1;
+    }
+    while ( !found );
+    return 1;
+}
+
+wchar_t* stdStrTable_GetStringWithFallback(stdStrTable* pTable, const char *key)
 {
     stdStrMsg *v2; // eax
     wchar_t *result; // eax
+
+    // Added: nullptr fallback
+    if (!key) {
+        return L"(NULL)";
+    }
 
     if ( pTable->numMsgs && (v2 = (stdStrMsg *)stdHashTable_GetKeyVal(pTable->hashtable, key)) != 0 )
         result = v2->uniStr;

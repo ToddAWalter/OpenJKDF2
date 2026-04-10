@@ -39,13 +39,14 @@ wchar_t* stdString_FastWCopy(const wchar_t *str)
     return result;
 }
 
-int stdString_snprintf(char *out, int num, char *fmt, ...)
+int stdString_snprintf(char *out, int num, const char *fmt, ...)
 {
     int result; // eax
     va_list va; // [esp+18h] [ebp+10h]
 
     va_start(va, fmt);
     result = __vsnprintf(out, num - 1, fmt, va);
+    va_end(va);
     out[num - 1] = 0;
     return result;
 }
@@ -54,7 +55,7 @@ char* stdString_CopyBetweenDelimiter(char *instr, char *outstr, int out_size, ch
 {
     char *out_; // edi
     const char *v5; // ebx
-    char *str_find; // eax
+    const char *str_find; // eax
     char *retval; // ebp
     size_t idk_len; // esi
 
@@ -63,7 +64,7 @@ char* stdString_CopyBetweenDelimiter(char *instr, char *outstr, int out_size, ch
         *outstr = 0;
     v5 = &instr[_strspn(instr, find_str)];
     str_find = _strpbrk(v5, find_str);
-    retval = str_find;
+    retval = (char*)str_find;
     if ( str_find )
     {
         idk_len = str_find - v5;
@@ -233,7 +234,7 @@ int stdString_wstrncat(wchar_t *a1, int a2, int a3, wchar_t *a4)
     }
     if ( v6 >= a2 - a3 - 1 )
         v6 = a2 - a3 - 1;
-    _memcpy(v7, a4, 2 * v6);
+    _memcpy(v7, a4, sizeof(wchar_t) * v6);
     result = a2;
     v4[a2 - 1] = 0;
     return result;

@@ -17,7 +17,7 @@
 void jkHudInv_DrawGPU();
 
 // MOTS added
-float jkHud_aBinMaxAmt[SITHBIN_NUMBINS] = {0};
+flex_t jkHud_aBinMaxAmt[SITHBIN_NUMBINS] = {0};
 
 // MOTS altered
 int jkHudInv_ItemDatLoad(char *fpath)
@@ -26,8 +26,8 @@ int jkHudInv_ItemDatLoad(char *fpath)
     unsigned int v3; // ebp
     sithCog *cog_; // eax
     sithCog *cog; // [esp+10h] [ebp-10h]
-    float max; // [esp+18h] [ebp-8h]
-    float min; // [esp+1Ch] [ebp-4h]
+    flex_t max; // [esp+18h] [ebp-8h]
+    flex_t min; // [esp+1Ch] [ebp-4h]
     int flags;
 
     if (!stdConffile_OpenRead(fpath))
@@ -152,6 +152,10 @@ void jkHudInv_Draw()
     wchar_t a6[3]; // [esp+28h] [ebp-18h] BYREF
     wchar_t v48[3]; // [esp+30h] [ebp-10h] BYREF
     wchar_t v50[3]; // [esp+38h] [ebp-8h] BYREF
+#ifdef TARGET_TWL
+    if ( Main_bNoHUD )
+        return;
+#endif
 
 #ifdef SDL2_RENDER
     jkHudInv_DrawGPU();
@@ -822,6 +826,11 @@ void jkHudInv_LoadItemRes()
     char a1[32]; // [esp+10h] [ebp-A0h] BYREF
     char v18[128]; // [esp+30h] [ebp-80h] BYREF
 
+#ifdef TARGET_TWL
+    if ( Main_bNoHUD )
+        return;
+#endif
+
 #ifndef SDL2_RENDER
     v0 = stdDisplay_pCurVideoMode->format.format.bpp;
 #else
@@ -829,7 +838,7 @@ void jkHudInv_LoadItemRes()
 #endif
     jkHudInv_rend_isshowing_maybe = 0;
     jkHudInv_dword_553F94 = 0;
-    if ( _memcmp(&Video_format.format, &jkHudInv_itemTexfmt, sizeof(rdTexformat)) || std3D_bReinitHudElements) // Added: std3D_bReinitHudElements
+    if ( _memcmp(&Video_format.format, &jkHudInv_itemTexfmt, sizeof(rdTexFormat)) || std3D_bReinitHudElements) // Added: std3D_bReinitHudElements
     {
         std3D_bReinitHudElements = 0;
         _memcpy(&jkHudInv_itemTexfmt, &Video_format.format, sizeof(jkHudInv_itemTexfmt));
@@ -849,13 +858,17 @@ void jkHudInv_LoadItemRes()
         else
             v1 = stdBitmap_Load("ui\\bm\\icBrack16.bm", 0, 0);
         jkHudInv_aBitmaps[0] = v1;
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
         stdBitmap_ConvertColorFormat(&Video_format.format, v1);
+#endif
         if ( v0 == 8 )
             v2 = stdBitmap_Load("ui\\bm\\forceBrack8.bm", 0, 0);
         else
             v2 = stdBitmap_Load("ui\\bm\\forceBrack16.bm", 0, 0);
         jkHudInv_aBitmaps[1] = v2;
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
         stdBitmap_ConvertColorFormat(&Video_format.format, v2);
+#endif
         if ( jkHudInv_aBitmaps[2] )
         {
             stdBitmap_Free(jkHudInv_aBitmaps[2]);
@@ -866,7 +879,9 @@ void jkHudInv_LoadItemRes()
         else
             stdString_snprintf(std_genBuffer, 1024, "ui\\bm\\%s", "IcDefau16.bm");
         jkHudInv_aBitmaps[2] = stdBitmap_Load(std_genBuffer, 0, 0);
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
         stdBitmap_ConvertColorFormat(&Video_format.format, jkHudInv_aBitmaps[2]);
+#endif
         for (int j = 0; j < SITHBIN_NUMBINS; j++)
         {
             if ( (sithInventory_aDescriptors[j].flags & (ITEMINFO_POWER|ITEMINFO_ITEM)) != 0 )
@@ -874,10 +889,13 @@ void jkHudInv_LoadItemRes()
                 if ( sithInventory_aDescriptors[j].hudBitmap )
                     stdBitmap_Free(sithInventory_aDescriptors[j].hudBitmap);
                 sithInventory_aDescriptors[j].hudBitmap = NULL;
+                // TODO ehh
                 stdString_snprintf(a1, 32, "ui\\bm\\ic%.5s%d.bm", sithInventory_aDescriptors[j].fpath, v0);
                 v4 = stdBitmap_Load(a1, 0, 0);
                 sithInventory_aDescriptors[j].hudBitmap = v4;
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
                 stdBitmap_ConvertColorFormat(&Video_format.format, v4);
+#endif
             }
         }
     }
@@ -895,7 +913,9 @@ void jkHudInv_LoadItemRes()
     jkHudInv_font = stdFont_Load(v18, 0, 0);
     if ( !jkHudInv_font )
         Windows_GameErrorMsgbox("ERR_CANNOT_LOAD_FILE %s", v18);
-    stdBitmap_ConvertColorFormat(&Video_format.format, jkHudInv_font->bitmap);
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
+    stdBitmap_ConvertColorFormat(&Video_format.format, jkHudInv_font->pBitmap);
+#endif
     v6 = Video_format.width;
     _memset(&jkHudInv_info, 0, sizeof(jkHudInvInfo));
     v7 = Video_format.height;
@@ -943,18 +963,27 @@ void jkHudInv_LoadItemRes()
 
 void jkHudInv_Close()
 {
+#ifdef TARGET_TWL
+    if ( Main_bNoHUD )
+        return;
+#endif
+
     stdFont_Free(jkHudInv_font);
     jkHudInv_font = 0;
 }
 
 int jkHudInv_Startup()
 {
-    _memset(&jkHudInv_itemTexfmt, 0, sizeof(rdTexformat)); // sizeof(jkHudInv_itemTexfmt)
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+    
+    _memset(&jkHudInv_itemTexfmt, 0, sizeof(rdTexFormat)); // sizeof(jkHudInv_itemTexfmt)
     return 1;
 }
 
 int jkHudInv_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     jkHudInv_Close(); // Added: memleak
 
     if ( jkHudInv_aItems )

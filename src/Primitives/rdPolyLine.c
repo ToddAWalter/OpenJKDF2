@@ -3,6 +3,7 @@
 #include "Engine/rdroid.h"
 #include "Engine/rdCamera.h"
 #include "General/stdMath.h"
+#include "General/stdString.h"
 #include "Raster/rdCache.h"
 #include "Engine/rdColormap.h"
 #include "Primitives/rdPrimit3.h"
@@ -12,7 +13,7 @@
 static rdVector3 polylineVerts[32]; // idk the size on this
 static rdVector3 rdPolyLine_FaceVerts[32];
 
-rdPolyLine* rdPolyLine_New(char *polyline_fname, char *material_fname, char *material_fname2, float length, float base_rad, float tip_rad, int lightmode, int texmode, int sortingmethod, float extraLight)
+rdPolyLine* rdPolyLine_New(char *polyline_fname, char *material_fname, char *material_fname2, flex_t length, flex_t base_rad, flex_t tip_rad, int lightmode, int texmode, int sortingmethod, flex_t extraLight)
 {
     rdPolyLine* polyline;
 
@@ -25,7 +26,7 @@ rdPolyLine* rdPolyLine_New(char *polyline_fname, char *material_fname, char *mat
     return polyline;
 }
 
-int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *material_side_fname, char *material_tip_fname, float length, float base_rad, float tip_rad, rdGeoMode_t edgeGeometryMode, rdLightMode_t edgeLightingMode, rdTexMode_t edgeTextureMode, float extraLight)
+int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *material_side_fname, char *material_tip_fname, flex_t length, flex_t base_rad, flex_t tip_rad, rdGeoMode_t edgeGeometryMode, rdLightMode_t edgeLightingMode, rdTexMode_t edgeTextureMode, flex_t extraLight)
 {
 
     rdMaterial *mat;
@@ -41,8 +42,10 @@ int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *materi
 
     if ( polyline_fname )
     {
-        _strncpy(polyline->fname, polyline_fname, 0x1Fu);
-        polyline->fname[31] = 0;
+        // TODO: caching?
+#ifdef SITH_DEBUG_STRUCT_NAMES
+        stdString_SafeStrCopy(polyline->fname, polyline_fname, 32);
+#endif
     }
     polyline->length = length;
     polyline->baseRadius = base_rad;
@@ -59,6 +62,7 @@ int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *materi
     polyline->edgeFace.material = rdMaterial_Load(material_side_fname, 0, 0);
     if ( !polyline->edgeFace.material )
         return 0;
+    rdMaterial_EnsureDataForced(polyline->edgeFace.material); // Added: TWL
     polyline->edgeFace.numVertices = 4;
     vertexPosIdx = (int *)rdroid_pHS->alloc(sizeof(int) * polyline->edgeFace.numVertices);
     polyline->edgeFace.vertexPosIdx = vertexPosIdx;
@@ -79,16 +83,22 @@ int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *materi
         polyline->extraUVTipMaybe = extraUVTipMaybe;
         if ( !extraUVTipMaybe )
             return 0;
-        v22 = polyline->edgeFace.material->texinfos[0]->texture_ptr->texture_struct[0];
-        extraUVTipMaybe[0].x = (double)((unsigned int)v22->format.width) - 0.01;
+        // Odd quirk: This requires the material be actually loaded
+        // Added: nullptr fallbacks
+        v22 = NULL;
+        if (polyline->edgeFace.material->texinfos[0] && polyline->edgeFace.material->texinfos[0]->texture_ptr) {
+            v22 = polyline->edgeFace.material->texinfos[0]->texture_ptr->texture_struct[0];
+        }
+        extraUVTipMaybe[0].x = (flex_d_t)(v22 ? (unsigned int)v22->format.width : 1) - 0.01;// Added: nullptr check and fallback
         extraUVTipMaybe[0].y = 0.0;
         extraUVTipMaybe[1].x = 0.0;
         extraUVTipMaybe[1].y = 0.0;
         extraUVTipMaybe[2].x = 0.0;
-        extraUVTipMaybe[2].y = (double)((unsigned int)v22->format.height) - 0.01;
-        extraUVTipMaybe[3].x = (double)((unsigned int)v22->format.width) - 0.01;
-        extraUVTipMaybe[3].y = (double)((unsigned int)v22->format.height) - 0.01;
+        extraUVTipMaybe[2].y = (flex_d_t)(v22 ? (unsigned int)v22->format.height : 1) - 0.01;// Added: nullptr check and fallback
+        extraUVTipMaybe[3].x = (flex_d_t)(v22 ? (unsigned int)v22->format.width : 1) - 0.01;// Added: nullptr check and fallback
+        extraUVTipMaybe[3].y = (flex_d_t)(v22 ? (unsigned int)v22->format.height : 1) - 0.01;// Added: nullptr check and fallback
     }
+    rdMaterial_OptionalFree(polyline->edgeFace.material); // Added: TWL
     polyline->tipFace.textureMode = edgeTextureMode;
     polyline->textureMode = edgeTextureMode;
     polyline->lightingMode = edgeLightingMode;
@@ -100,6 +110,7 @@ int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *materi
     polyline->tipFace.material = rdMaterial_Load(material_tip_fname, 0, 0);
     if ( !polyline->tipFace.material )
         return 0;
+    rdMaterial_EnsureDataForced(polyline->tipFace.material); // Added: TWL
     polyline->tipFace.numVertices = 4;
     vertexPosIdx = (int *)rdroid_pHS->alloc(sizeof(int) * polyline->tipFace.numVertices);
     polyline->tipFace.vertexPosIdx = vertexPosIdx;
@@ -119,16 +130,22 @@ int rdPolyLine_NewEntry(rdPolyLine *polyline, char *polyline_fname, char *materi
         polyline->extraUVFaceMaybe = extraUVFaceMaybe;
         if ( !extraUVFaceMaybe )
             return 0;
-        v22 = polyline->tipFace.material->texinfos[0]->texture_ptr->texture_struct[0];
-        extraUVFaceMaybe[0].x = (double)((unsigned int)v22->format.width) - 0.01;
+        // Odd quirk: This requires the material be actually loaded
+        // Added: nullptr fallbacks
+        v22 = NULL;
+        if (polyline->tipFace.material->texinfos[0] && polyline->tipFace.material->texinfos[0]->texture_ptr) {
+            v22 = polyline->tipFace.material->texinfos[0]->texture_ptr->texture_struct[0];
+        }
+        extraUVFaceMaybe[0].x = (flex_d_t)(v22 ? (unsigned int)v22->format.width : 1.0) - 0.01; // Added: nullptr check and fallback
         extraUVFaceMaybe[0].y = 0.0;
         extraUVFaceMaybe[1].x = 0.0;
         extraUVFaceMaybe[1].y = 0.0;
         extraUVFaceMaybe[2].x = 0.0;
-        extraUVFaceMaybe[2].y = (double)((unsigned int)v22->format.height) - 0.01;
-        extraUVFaceMaybe[3].x = (double)((unsigned int)v22->format.width) - 0.01;
-        extraUVFaceMaybe[3].y = (double)((unsigned int)v22->format.height) - 0.01;
+        extraUVFaceMaybe[2].y = (flex_d_t)(v22 ? (unsigned int)v22->format.height : 1.0) - 0.01; // Added: nullptr check and fallback
+        extraUVFaceMaybe[3].x = (flex_d_t)(v22 ? (unsigned int)v22->format.width : 1.0) - 0.01; // Added: nullptr check and fallback
+        extraUVFaceMaybe[3].y = (flex_d_t)(v22 ? (unsigned int)v22->format.height : 1.0) - 0.01; // Added: nullptr check and fallback
     }
+    rdMaterial_OptionalFree(polyline->tipFace.material); // Added: TWL
     return 1;
 }
 
@@ -178,18 +195,18 @@ void rdPolyLine_FreeEntry(rdPolyLine *polyline)
 int rdPolyLine_Draw(rdThing *thing, rdMatrix34 *matrix)
 {
     rdPolyLine *polyline;
-    float length;
-    double tip_left;
-    double tip_bottom;
-    double tip_right;
-    double tip_top;
-    float ang;
-    float angSin;
-    float angCos;
+    flex_t length;
+    flex_d_t tip_left;
+    flex_d_t tip_bottom;
+    flex_d_t tip_right;
+    flex_d_t tip_top;
+    flex_t ang;
+    flex_t angSin;
+    flex_t angCos;
     rdVector3 vertex_out;
     rdMatrix34 out;
     rdVector3 vertex;
-    rdVertexIdxInfo idxInfo;
+    rdMeshinfo idxInfo;
 
     polyline = thing->polyline;
     
@@ -209,19 +226,21 @@ int rdPolyLine_Draw(rdThing *thing, rdMatrix34 *matrix)
     tip_right = vertex_out.x + polyline->tipRadius;
     tip_top = vertex_out.z + polyline->tipRadius;
 
+    flex_t epislon = -0.001;
+
     // Tip
     {
         polylineVerts[0].x = tip_left;
-        polylineVerts[0].y = vertex_out.y - -0.001;
+        polylineVerts[0].y = vertex_out.y - epislon;
         polylineVerts[0].z = tip_bottom;
         polylineVerts[1].x = tip_right;
-        polylineVerts[1].y = vertex_out.y - -0.001;
+        polylineVerts[1].y = vertex_out.y - epislon;
         polylineVerts[1].z = tip_bottom;
         polylineVerts[2].x = tip_right;
-        polylineVerts[2].y = vertex_out.y - -0.001;
+        polylineVerts[2].y = vertex_out.y - epislon;
         polylineVerts[2].z = tip_top;
         polylineVerts[3].x = tip_left;
-        polylineVerts[3].y = vertex_out.y - -0.001;
+        polylineVerts[3].y = vertex_out.y - epislon;
         polylineVerts[3].z = tip_top;
         idxInfo.vertexUVs = polyline->extraUVFaceMaybe;
         rdPolyLine_DrawFace(thing, &polyline->tipFace, polylineVerts, &idxInfo);
@@ -230,16 +249,16 @@ int rdPolyLine_Draw(rdThing *thing, rdMatrix34 *matrix)
     // Base
     {
         polylineVerts[0].x = out.scale.x - polyline->baseRadius;
-        polylineVerts[0].y = out.scale.y - -0.001;
+        polylineVerts[0].y = out.scale.y - epislon;
         polylineVerts[0].z = out.scale.z - polyline->baseRadius;
         polylineVerts[1].x = out.scale.x + polyline->baseRadius;
-        polylineVerts[1].y = out.scale.y - -0.001;
+        polylineVerts[1].y = out.scale.y - epislon;
         polylineVerts[1].z = out.scale.z - polyline->baseRadius;
         polylineVerts[2].x = out.scale.x + polyline->baseRadius;
-        polylineVerts[2].y = out.scale.y - -0.001;
+        polylineVerts[2].y = out.scale.y - epislon;
         polylineVerts[2].z = out.scale.z + polyline->baseRadius;
         polylineVerts[3].x = out.scale.x - polyline->baseRadius;
-        polylineVerts[3].y = out.scale.y - -0.001;
+        polylineVerts[3].y = out.scale.y - epislon;
         polylineVerts[3].z = out.scale.z + polyline->baseRadius;
         idxInfo.vertexUVs = polyline->extraUVFaceMaybe;
         rdPolyLine_DrawFace(thing, &polyline->tipFace, polylineVerts, &idxInfo);
@@ -248,9 +267,9 @@ int rdPolyLine_Draw(rdThing *thing, rdMatrix34 *matrix)
 
     // Blade
     {
-        float zdist = vertex_out.z - out.scale.z;
-        float xdist = vertex_out.x - out.scale.x;
-        float mag = stdMath_Sqrt(xdist * xdist + zdist * zdist);
+        flex_t zdist = vertex_out.z - out.scale.z;
+        flex_t xdist = vertex_out.x - out.scale.x;
+        flex_t mag = stdMath_Sqrt(xdist * xdist + zdist * zdist);
 
         // Added: prevent div 0
         if (mag == 0)
@@ -275,30 +294,30 @@ int rdPolyLine_Draw(rdThing *thing, rdMatrix34 *matrix)
         polylineVerts[1].y = vertex_out.y;
         polylineVerts[1].z = (-polyline->tipRadius * angSin) + (mag * angCos) + out.scale.z;
         
-        polylineVerts[2].x = (-polyline->baseRadius * angCos) - (float)0.0 + out.scale.x;
+        polylineVerts[2].x = (-polyline->baseRadius * angCos) - (flex_t)0.0 + out.scale.x;
         polylineVerts[2].y = out.scale.y;
-        polylineVerts[2].z = (-polyline->baseRadius * angSin) + (float)0.0 + out.scale.z;
+        polylineVerts[2].z = (-polyline->baseRadius * angSin) + (flex_t)0.0 + out.scale.z;
         
-        polylineVerts[3].x = (polyline->baseRadius * angCos) - (float)0.0 + out.scale.x;
+        polylineVerts[3].x = (polyline->baseRadius * angCos) - (flex_t)0.0 + out.scale.x;
         polylineVerts[3].y = out.scale.y;
-        polylineVerts[3].z = (polyline->baseRadius * angSin) + (float)0.0 + out.scale.z;
+        polylineVerts[3].z = (polyline->baseRadius * angSin) + (flex_t)0.0 + out.scale.z;
         idxInfo.vertexUVs = polyline->extraUVTipMaybe;
         rdPolyLine_DrawFace(thing, &polyline->edgeFace, polylineVerts, &idxInfo);
     }
     return 1;
 }
 
-void rdPolyLine_DrawFace(rdThing *thing, rdFace *face, rdVector3 *unused, rdVertexIdxInfo *idxInfo)
+void rdPolyLine_DrawFace(rdThing *thing, rdFace *face, rdVector3 *unused, rdMeshinfo *idxInfo)
 {
     rdProcEntry *procEntry;
     rdMeshinfo mesh_out;
-    float staticLight;
+    flex_t staticLight;
 
     procEntry = rdCache_GetProcEntry();
     if (!procEntry)
         return;
 
-    mesh_out.verticesProjected = rdPolyLine_FaceVerts;
+    mesh_out.vertices = rdPolyLine_FaceVerts;
     mesh_out.verticesOrig = procEntry->vertices;
     mesh_out.vertexUVs = procEntry->vertexUVs;
     mesh_out.paDynamicLight = procEntry->vertexIntensities;
@@ -362,13 +381,15 @@ void rdPolyLine_DrawFace(rdThing *thing, rdFace *face, rdVector3 *unused, rdVert
     if ( mesh_out.numVertices < 3 )
         return;
 
-    rdCamera_pCurCamera->fnProjectLst(mesh_out.verticesOrig, mesh_out.verticesProjected, mesh_out.numVertices);
+    rdCamera_pCurCamera->fnProjectLst(mesh_out.verticesOrig, mesh_out.vertices, mesh_out.numVertices);
 
     if ( rdroid_curRenderOptions & 2 )
         procEntry->ambientLight = rdCamera_pCurCamera->ambientLight;
     else
         procEntry->ambientLight = 0.0;
 
+    // Software renderer optimizations, skip
+#ifndef TARGET_TWL
     if ( procEntry->lightingMode )
     {
         if ( procEntry->ambientLight < 1.0 )
@@ -431,6 +452,12 @@ void rdPolyLine_DrawFace(rdThing *thing, rdFace *face, rdVector3 *unused, rdVert
             procEntry->light_level_static = 1.0;
         }
     }
+#else
+    if ( procEntry->lightingMode == 3 )
+    {
+        procEntry->light_level_static = *procEntry->vertexIntensities;
+    }
+#endif
     
     int procFaceFlags = 1;
     if ( procEntry->geometryMode >= 4 )
@@ -443,5 +470,9 @@ void rdPolyLine_DrawFace(rdThing *thing, rdFace *face, rdVector3 *unused, rdVert
     procEntry->type = face->type;
     procEntry->extralight = face->extraLight;
     procEntry->material = face->material;
+
+    // Added: Polylines should always be drawn
+    rdMaterial_EnsureDataForced(procEntry->material);
+
     rdCache_AddProcFace(0, mesh_out.numVertices, procFaceFlags);
 }

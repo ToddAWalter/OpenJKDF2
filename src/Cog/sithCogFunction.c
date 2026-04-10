@@ -65,7 +65,7 @@ void sithCogFunction_GetSourceType(sithCog *ctx)
 
 void sithCogFunction_Rand(sithCog *ctx)
 {
-    float val = _frand();
+    cog_flex_t val = _frand();
     sithCogExec_PushFlex(ctx, val);
 }
 
@@ -82,7 +82,7 @@ void sithCogFunction_RandVec(sithCog *ctx)
 void sithCogFunction_Sleep(sithCog *ctx)
 {
     sithCog *ctx_;
-    double fSecs;
+    flex_d_t fSecs;
 
     ctx_ = ctx;
     fSecs = sithCogExec_PopFlex(ctx);
@@ -103,8 +103,10 @@ void sithCogFunction_Sleep(sithCog *ctx)
     // TODO this is probably an inlined func?
     if ( ctx_->flags & SITH_COG_DEBUG )
     {
+#ifdef SITH_DEBUG_STRUCT_NAMES
         _sprintf(std_genBuffer, "Cog %s: Sleeping for %f seconds.\n", ctx_->cogscript_fpath, fSecs);
         sithConsole_Print(std_genBuffer);
+#endif
     }
     ctx_->script_running = 2;
     ctx_->wakeTimeMs = sithTime_curMs + (int)(fSecs * 1000.0);
@@ -154,7 +156,7 @@ void sithCogFunction_SurfaceAnim(sithCog *ctx)
     int popInt; // edi
     sithSurface *surface; // ecx
     rdSurface *v4; // eax
-    float popFlex; // [esp+Ch] [ebp+4h]
+    cog_flex_t popFlex; // [esp+Ch] [ebp+4h]
 
     // TODO: is this inlined?
     ctx_ = ctx;
@@ -181,15 +183,15 @@ void sithCogFunction_MaterialAnim(sithCog *ctx)
 {
     sithCog *ctx_; // esi
     int popInt; // edi
-    void *material; // ecx
+    rdMaterial *material; // ecx
     rdSurface *v4; // eax
-    float popFlex; // [esp+Ch] [ebp+4h]
+    cog_flex_t popFlex; // [esp+Ch] [ebp+4h]
 
     // TODO is this inlined
     ctx_ = ctx;
     popInt = sithCogExec_PopInt(ctx);
     popFlex = sithCogExec_PopFlex(ctx);
-    material = sithCogExec_PopMaterial(ctx_); // TODO rdMaterial*
+    material = sithCogExec_PopMaterial(ctx_);
     if ( !material )
     {
         sithCogExec_PushInt(ctx_, -1);
@@ -311,15 +313,17 @@ void sithCogFunction_LoadModel(sithCog *ctx)
 
 void sithCogFunction_SetPulse(sithCog *ctx)
 {
-    float popFlex;
+    cog_flex_t popFlex;
 
     popFlex = sithCogExec_PopFlex(ctx);
     if ( popFlex <= 0.0 )
     {
         if ( ctx->flags & SITH_COG_DEBUG )
         {
+#ifdef SITH_DEBUG_STRUCT_NAMES
             _sprintf(std_genBuffer, "Cog %s: Pulse disabled.\n", ctx->cogscript_fpath);
             sithConsole_Print(std_genBuffer);
+#endif
         }
         ctx->flags &= ~SITH_COG_PULSE_SET;
     }
@@ -327,8 +331,10 @@ void sithCogFunction_SetPulse(sithCog *ctx)
     {
         if ( ctx->flags & SITH_COG_DEBUG )
         {
+#ifdef SITH_DEBUG_STRUCT_NAMES
             _sprintf(std_genBuffer, "Cog %s: Pulse set to %f seconds.\n", ctx->cogscript_fpath, popFlex);
             sithConsole_Print(std_genBuffer);
+#endif
         }
         ctx->flags |= SITH_COG_PULSE_SET;
         ctx->pulsePeriodMs = (int)(popFlex * 1000.0);
@@ -338,13 +344,15 @@ void sithCogFunction_SetPulse(sithCog *ctx)
 
 void sithCogFunction_SetTimer(sithCog *ctx)
 {
-    float popFlex = sithCogExec_PopFlex(ctx);
+    cog_flex_t popFlex = sithCogExec_PopFlex(ctx);
     if ( popFlex <= 0.0 )
     {
         if ( ctx->flags & SITH_COG_DEBUG )
         {
+#ifdef SITH_DEBUG_STRUCT_NAMES
             _sprintf(std_genBuffer, "Cog %s: Timer cancelled.\n", ctx->cogscript_fpath);
             sithConsole_Print(std_genBuffer);
+#endif
         }
         ctx->flags &= ~SITH_COG_TIMER_SET;
     }
@@ -352,8 +360,10 @@ void sithCogFunction_SetTimer(sithCog *ctx)
     {
         if ( ctx->flags & SITH_COG_DEBUG )
         {
+#ifdef SITH_DEBUG_STRUCT_NAMES
             _sprintf(std_genBuffer, "Cog %s: Timer set for %f seconds.\n", ctx->cogscript_fpath, popFlex);
             sithConsole_Print(std_genBuffer);
+#endif
         }
         ctx->flags |= SITH_COG_TIMER_SET;
         ctx->field_20 = sithTime_curMs + (int)(popFlex * 1000.0);
@@ -362,16 +372,14 @@ void sithCogFunction_SetTimer(sithCog *ctx)
 
 void sithCogFunction_SetTimerEx(sithCog *ctx)
 {
-    sithEventInfo timerInfo; // [esp+4h] [ebp-14h]
-    int timerMs; // [esp+14h] [ebp-4h]
-    float a1a; // [esp+20h] [ebp+8h]
+    sithEventInfo timerInfo;
 
     timerInfo.field_14 = sithCogExec_PopFlex(ctx);
     timerInfo.field_10 = sithCogExec_PopFlex(ctx);
     timerInfo.timerIdx = sithCogExec_PopInt(ctx);
     timerInfo.cogIdx = ctx->selfCog;
-    a1a = sithCogExec_PopFlex(ctx) * 1000.0;
-    timerMs = (signed int)a1a;
+    cog_flex_t a1a = sithCogExec_PopFlex(ctx) * 1000.0;
+    int timerMs = (signed int)a1a;
     if ( timerMs >= 0 ) {
         sithEvent_Set(4, &timerInfo, timerMs);
     }
@@ -379,12 +387,11 @@ void sithCogFunction_SetTimerEx(sithCog *ctx)
 
 void sithCogFunction_KillTimerEx(sithCog *ctx)
 {
-    signed int v1; // ebx
     sithEvent *v2; // eax
     sithEvent *v3; // edi
     sithEvent *v4; // esi
 
-    v1 = sithCogExec_PopInt(ctx);
+    int v1 = sithCogExec_PopInt(ctx);
     if ( v1 > 0 )
     {
         v2 = sithEvent_list;
@@ -485,7 +492,7 @@ void sithCogFunction_VectorScale(sithCog *ctx)
     rdVector3 inA;
     rdVector3 out;
 
-    float scale = sithCogExec_PopFlex(ctx);
+    cog_flex_t scale = sithCogExec_PopFlex(ctx);
     sithCogExec_PopVector3(ctx, &inA);
     rdVector_Scale3(&out, &inA, scale);
     sithCogExec_PushVector3(ctx, &out);
@@ -530,16 +537,16 @@ void sithCogFunction_SendMessage(sithCog *ctx)
 
 void sithCogFunction_SendMessageEx(struct sithCog *ctx)
 {
-    float param3 = sithCogExec_PopFlex(ctx);
-    float param2 = sithCogExec_PopFlex(ctx);
-    float param1 = sithCogExec_PopFlex(ctx);
-    float param0 = sithCogExec_PopFlex(ctx);
+    cog_flex_t param3 = sithCogExec_PopFlex(ctx);
+    cog_flex_t param2 = sithCogExec_PopFlex(ctx);
+    cog_flex_t param1 = sithCogExec_PopFlex(ctx);
+    cog_flex_t param0 = sithCogExec_PopFlex(ctx);
     int msgId = sithCogExec_PopInt(ctx);
     sithCog* cog = sithCogExec_PopCog(ctx);
 
     if (cog && msgId >= 0 && msgId < SITH_MESSAGE_MAX)
     {
-        float flexRet = sithCog_SendMessageEx(cog, msgId, SENDERTYPE_COG, ctx->selfCog, ctx->sourceType, ctx->sourceRef, 0, param0, param1, param2, param3);
+        cog_flex_t flexRet = sithCog_SendMessageEx(cog, msgId, SENDERTYPE_COG, ctx->selfCog, ctx->sourceType, ctx->sourceRef, 0, param0, param1, param2, param3);
         sithCogExec_PushFlex(ctx, flexRet);
     }
 }
@@ -554,7 +561,7 @@ void sithCogFunction_GetKeyLen(sithCog *ctx)
         return;
     }
 
-    sithCogExec_PushFlex(ctx, (double)keyframe->numFrames / keyframe->fps);
+    sithCogExec_PushFlex(ctx, (flex_d_t)keyframe->numFrames / keyframe->fps);
 }
 
 void sithCogFunction_GetSithMode(sithCog* ctx)
@@ -694,11 +701,8 @@ void sithCogFunction_GetParam(sithCog *ctx)
 
 void sithCogFunction_SetParam(sithCog *ctx)
 {
-    int idx;
-    float val;
-
-    val = sithCogExec_PopFlex(ctx);
-    idx = sithCogExec_PopInt(ctx);
+    cog_flex_t val = sithCogExec_PopFlex(ctx);
+    int idx = sithCogExec_PopInt(ctx);
     if (idx >= 0 && idx < 4)
         ctx->params[idx] = val;
 }
@@ -762,8 +766,8 @@ void sithCogFunction_GetMaterialCel(sithCog *ctx)
 
 void sithCogFunction_EnableIRMode(sithCog *ctx)
 {
-    float flex1 = sithCogExec_PopFlex(ctx);
-    float flex2 = sithCogExec_PopFlex(ctx);
+    cog_flex_t flex1 = sithCogExec_PopFlex(ctx);
+    cog_flex_t flex2 = sithCogExec_PopFlex(ctx);
     sithRender_EnableIRMode(flex2, flex1);
 }
 
@@ -901,8 +905,8 @@ void sithCogFunction_CycleCamera(sithCog *ctx)
 // MOTS added
 void sithCogFunction_SetCameraZoom(sithCog *ctx)
 {
-    float zoomSpeed = sithCogExec_PopFlex(ctx);
-    float zoomScale = sithCogExec_PopFlex(ctx);
+    cog_flex_t zoomSpeed = sithCogExec_PopFlex(ctx);
+    cog_flex_t zoomScale = sithCogExec_PopFlex(ctx);
     int camIdx = sithCogExec_PopInt(ctx);
 
     if ((-1 < camIdx) && (camIdx < 7)) {
@@ -912,13 +916,11 @@ void sithCogFunction_SetCameraZoom(sithCog *ctx)
 
 void sithCogFunction_SetPovShake(sithCog *ctx)
 {
-    float v2; // [esp+4h] [ebp-1Ch]
-    rdVector3 v3; // [esp+8h] [ebp-18h]
-    rdVector3 v4; // [esp+14h] [ebp-Ch]
-    float a1a; // [esp+24h] [ebp+4h]
+    rdVector3 v3;
+    rdVector3 v4;
 
-    a1a = sithCogExec_PopFlex(ctx);
-    v2 = sithCogExec_PopFlex(ctx);
+    cog_flex_t a1a = sithCogExec_PopFlex(ctx);
+    cog_flex_t v2 = sithCogExec_PopFlex(ctx);
     if ( sithCogExec_PopVector3(ctx, &v3) )
     {
         if ( sithCogExec_PopVector3(ctx, &v4) )
@@ -928,11 +930,10 @@ void sithCogFunction_SetPovShake(sithCog *ctx)
 
 void sithCogFunction_HeapNew(sithCog *ctx)
 {
-    int numHeapVars; // ebp
     sithCogStackvar *oldHeap; // eax
     sithCogStackvar *newHeap; // edi
 
-    numHeapVars = sithCogExec_PopInt(ctx);
+    int numHeapVars = sithCogExec_PopInt(ctx);
     if ( numHeapVars > 0 )
     {
         oldHeap = ctx->heap;
@@ -950,23 +951,20 @@ void sithCogFunction_HeapNew(sithCog *ctx)
 
 void sithCogFunction_HeapSet(sithCog *ctx)
 {
-    int val;
-    int idx;
     sithCogStackvar stackVar;
 
-    val = sithCogExec_PopValue(ctx, &stackVar);
-    idx = sithCogExec_PopInt(ctx);
+    int val = sithCogExec_PopValue(ctx, &stackVar);
+    int idx = sithCogExec_PopInt(ctx);
     if ( val && idx >= 0 && idx < ctx->numHeapVars )
         ctx->heap[idx] = stackVar;
 }
 
 void sithCogFunction_HeapGet(sithCog *ctx)
 {
-    int idx;
     sithCogStackvar *heapVar;
     sithCogStackvar tmp;
 
-    idx = sithCogExec_PopInt(ctx);
+    int idx = sithCogExec_PopInt(ctx);
     if (idx < 0 || idx >= ctx->numHeapVars)
     {
         sithCogExec_PushInt(ctx, 0);
@@ -1028,76 +1026,72 @@ void sithCogFunction_SetActionCog(sithCog *ctx)
 
 void sithCogFunction_NewColorEffect(sithCog *ctx)
 {
-    sithCog *v1; // esi
-    int v2; // ebx
-    int v3; // ebp
+    int addB; // ebx
+    int addG; // ebp
     int idx; // edi
-    signed int a3; // [esp+10h] [ebp-1Ch]
-    signed int a2; // [esp+14h] [ebp-18h]
-    float a4; // [esp+18h] [ebp-14h]
-    float v8; // [esp+1Ch] [ebp-10h]
-    float v9; // [esp+20h] [ebp-Ch]
-    signed int v10; // [esp+24h] [ebp-8h]
-    float v11; // [esp+28h] [ebp-4h]
-    int a1a; // [esp+30h] [ebp+4h]
+    signed int filterG; // [esp+10h] [ebp-1Ch]
+    signed int filterR; // [esp+14h] [ebp-18h]
+    cog_flex_t tintB; // [esp+18h] [ebp-14h]
+    cog_flex_t tintG; // [esp+1Ch] [ebp-10h]
+    cog_flex_t tintR; // [esp+20h] [ebp-Ch]
+    signed int addR; // [esp+24h] [ebp-8h]
+    cog_flex_t fade; // [esp+28h] [ebp-4h]
+    int filterB; // [esp+30h] [ebp+4h]
 
-    v1 = ctx;
-    v11 = sithCogExec_PopFlex(ctx);
-    v2 = sithCogExec_PopInt(ctx);
-    v3 = sithCogExec_PopInt(ctx);
-    v10 = sithCogExec_PopInt(ctx);
-    a4 = sithCogExec_PopFlex(ctx);
-    v8 = sithCogExec_PopFlex(ctx);
-    v9 = sithCogExec_PopFlex(ctx);
-    a1a = sithCogExec_PopInt(ctx);
-    a3 = sithCogExec_PopInt(v1);
-    a2 = sithCogExec_PopInt(v1);
+    fade = sithCogExec_PopFlex(ctx);
+    addB = sithCogExec_PopInt(ctx);
+    addG = sithCogExec_PopInt(ctx);
+    addR = sithCogExec_PopInt(ctx);
+    tintB = sithCogExec_PopFlex(ctx);
+    tintG = sithCogExec_PopFlex(ctx);
+    tintR = sithCogExec_PopFlex(ctx);
+    filterB = sithCogExec_PopInt(ctx);
+    filterG = sithCogExec_PopInt(ctx);
+    filterR = sithCogExec_PopInt(ctx);
     idx = stdPalEffects_NewRequest(1);
     if ( idx == -1 )
     {
-        sithCogExec_PushInt(v1, -1);
+        sithCogExec_PushInt(ctx, -1);
     }
     else
     {
-        stdPalEffects_SetFilter(idx, a2, a3, a1a);
-        stdPalEffects_SetTint(idx, v9, v8, a4);
-        stdPalEffects_SetAdd(idx, v10, v3, v2);
-        stdPalEffects_SetFade(idx, v11);
-        sithCogExec_PushInt(v1, idx);
+        stdPalEffects_SetFilter(idx, filterR, filterG, filterB);
+        stdPalEffects_SetTint(idx, tintR, tintG, tintB);
+        stdPalEffects_SetAdd(idx, addR, addG, addB);
+        stdPalEffects_SetFade(idx, fade);
+        sithCogExec_PushInt(ctx, idx);
     }
 }
 
 void sithCogFunction_ModifyColorEffect(sithCog *ctx)
 {
-    sithCog *v1; // esi
-    float v2; // ST34_4
-    int v3; // edi
-    int v4; // ebx
-    int v5; // ebp
-    float a4; // ST28_4
-    float v7; // ST2C_4
-    float v8; // ST30_4
-    signed int a3; // ST20_4
-    signed int a2; // ST24_4
-    int v11; // esi
-    int a1a; // [esp+2Ch] [ebp+4h]
+    cog_flex_t fade; // ST34_4
+    int addB; // edi
+    int addG; // ebx
+    int addR; // ebp
+    cog_flex_t tintB; // ST28_4
+    cog_flex_t tintG; // ST2C_4
+    cog_flex_t tintR; // ST30_4
+    signed int filterG; // ST20_4
+    signed int filterR; // ST24_4
+    int idx; // esi
+    int filterB; // [esp+2Ch] [ebp+4h]
 
-    v1 = ctx;
-    v2 = sithCogExec_PopFlex(ctx);
-    v3 = sithCogExec_PopInt(ctx);
-    v4 = sithCogExec_PopInt(ctx);
-    v5 = sithCogExec_PopInt(ctx);
-    a4 = sithCogExec_PopFlex(ctx);
-    v7 = sithCogExec_PopFlex(ctx);
-    v8 = sithCogExec_PopFlex(ctx);
-    a1a = sithCogExec_PopInt(ctx);
-    a3 = sithCogExec_PopInt(v1);
-    a2 = sithCogExec_PopInt(v1);
-    v11 = sithCogExec_PopInt(v1);
-    stdPalEffects_SetFilter(v11, a2, a3, a1a);
-    stdPalEffects_SetTint(v11, v8, v7, a4);
-    stdPalEffects_SetAdd(v11, v5, v4, v3);
-    stdPalEffects_SetFade(v11, v2);
+    fade = sithCogExec_PopFlex(ctx);
+    addB = sithCogExec_PopInt(ctx);
+    addG = sithCogExec_PopInt(ctx);
+    addR = sithCogExec_PopInt(ctx);
+    tintB = sithCogExec_PopFlex(ctx);
+    tintG = sithCogExec_PopFlex(ctx);
+    tintR = sithCogExec_PopFlex(ctx);
+    filterB = sithCogExec_PopInt(ctx);
+    filterG = sithCogExec_PopInt(ctx);
+    filterR = sithCogExec_PopInt(ctx);
+    idx = sithCogExec_PopInt(ctx);
+    stdPalEffects_SetFilter(idx, filterR, filterG, filterB);
+    stdPalEffects_SetTint(idx, tintR, tintG, tintB);
+    stdPalEffects_SetAdd(idx, addR, addG, addB);
+    stdPalEffects_SetFade(idx, fade);
 }
 
 void sithCogFunction_FreeColorEffect(sithCog *ctx)
@@ -1112,14 +1106,11 @@ void sithCogFunction_AddDynamicTint(sithCog *ctx)
 {
     sithCog *v1; // esi
     sithThing *player; // eax
-    float fG; // [esp+4h] [ebp-8h]
-    float fR; // [esp+8h] [ebp-4h]
-    float fB; // [esp+10h] [ebp+4h]
 
     v1 = ctx;
-    fB = sithCogExec_PopFlex(ctx);
-    fG = sithCogExec_PopFlex(v1);
-    fR = sithCogExec_PopFlex(v1);
+    cog_flex_t fB = sithCogExec_PopFlex(ctx);
+    cog_flex_t fG = sithCogExec_PopFlex(v1);
+    cog_flex_t fR = sithCogExec_PopFlex(v1);
     player = sithCogExec_PopThing(v1);
     if ( player && player->type == SITH_THING_PLAYER && player == sithPlayer_pLocalPlayerThing )
         sithPlayer_AddDynamicTint(fR, fG, fB);
@@ -1145,27 +1136,20 @@ void sithCogFunction_AddDynamicAdd(sithCog *ctx)
 // MOTS added
 void sithCogFunction_FireProjectileInternal(sithCog *ctx, int extra)
 {
-    int scaleFlags;
-    int mode;
-    sithSound *fireSound;
-    sithThing *projectileTemplate;
-    sithThing *sender;
-    float autoaimMaxDist;
-    float autoaimFov;
-    float scale;
     rdVector3 aimError;
     rdVector3 fireOffset;
     
-    autoaimMaxDist = sithCogExec_PopFlex(ctx);
-    autoaimFov = sithCogExec_PopFlex(ctx);
-    scaleFlags = sithCogExec_PopInt(ctx);
-    scale = sithCogExec_PopFlex(ctx);
+    cog_flex_t autoaimMaxDist = sithCogExec_PopFlex(ctx);
+    cog_flex_t autoaimFov = sithCogExec_PopFlex(ctx);
+    int scaleFlags = sithCogExec_PopInt(ctx);
+    cog_flex_t scale = sithCogExec_PopFlex(ctx);
     sithCogExec_PopVector3(ctx,&aimError);
     sithCogExec_PopVector3(ctx,&fireOffset);
-    mode = sithCogExec_PopInt(ctx);
-    fireSound = sithCogExec_PopSound(ctx);
-    projectileTemplate = sithCogExec_PopTemplate(ctx);
-    sender = sithCogExec_PopThing(ctx);
+    int mode = sithCogExec_PopInt(ctx);
+    sithSound* fireSound = sithCogExec_PopSound(ctx);
+    sithThing* projectileTemplate = sithCogExec_PopTemplate(ctx);
+    sithThing* sender = sithCogExec_PopThing(ctx);
+
     if (sender) {
         projectileTemplate = sithWeapon_FireProjectile(sender,projectileTemplate,fireSound,mode,&fireOffset,&aimError,scale,(int16_t)scaleFlags,autoaimFov,autoaimMaxDist,extra);
         if (projectileTemplate) {
@@ -1200,20 +1184,15 @@ void sithCogFunction_FireProjectileLocal(sithCog *ctx)
 
 void sithCogFunction_SendTrigger(sithCog *ctx)
 {
-    int sourceType; // edi
-    sithThing *sourceThing; // eax
-    sithPlayerInfo *playerinfo; // ecx
-    float arg3; // [esp+10h] [ebp-Ch]
-    float arg2; // [esp+14h] [ebp-8h]
-    float arg1; // [esp+18h] [ebp-4h]
-    float arg0; // [esp+20h] [ebp+4h]
+    sithPlayerInfo* playerinfo;
 
-    arg3 = sithCogExec_PopFlex(ctx);
-    arg2 = sithCogExec_PopFlex(ctx);
-    arg1 = sithCogExec_PopFlex(ctx);
-    arg0 = sithCogExec_PopFlex(ctx);
-    sourceType = sithCogExec_PopInt(ctx);
-    sourceThing = sithCogExec_PopThing(ctx);
+    cog_flex_t arg3 = sithCogExec_PopFlex(ctx);
+    cog_flex_t arg2 = sithCogExec_PopFlex(ctx);
+    cog_flex_t arg1 = sithCogExec_PopFlex(ctx);
+    cog_flex_t arg0 = sithCogExec_PopFlex(ctx);
+    int sourceType = sithCogExec_PopInt(ctx);
+    sithThing* sourceThing = sithCogExec_PopThing(ctx);
+    
     if ( sourceThing )
     {
         if ( sourceThing->type == SITH_THING_PLAYER )
@@ -1265,7 +1244,7 @@ void sithCogFunction_SendTrigger(sithCog *ctx)
 void sithCogFunction_ActivateWeapon(sithCog *ctx)
 {
     int mode = sithCogExec_PopInt(ctx);
-    float fireRate = sithCogExec_PopFlex(ctx);
+    cog_flex_t fireRate = sithCogExec_PopFlex(ctx);
     sithThing* weaponThing = sithCogExec_PopThing(ctx);
 
     if ( weaponThing && fireRate >= 0.0 && mode >= 0 && mode < 2 )
@@ -1274,12 +1253,8 @@ void sithCogFunction_ActivateWeapon(sithCog *ctx)
 
 void sithCogFunction_DeactivateWeapon(sithCog *ctx)
 {
-    int mode; // edi
-    sithThing *weapon; // eax
-    float a1a; // [esp+Ch] [ebp+4h]
-
-    mode = sithCogExec_PopInt(ctx);
-    weapon = sithCogExec_PopThing(ctx);
+    int mode = sithCogExec_PopInt(ctx);
+    sithThing* weapon = sithCogExec_PopThing(ctx);
     if ( weapon && mode >= 0 && mode < 2 )
     {
         sithCogExec_PushFlex(ctx, sithWeapon_Deactivate(weapon, ctx, mode));
@@ -1292,7 +1267,7 @@ void sithCogFunction_DeactivateWeapon(sithCog *ctx)
 
 void sithCogFunction_SetFireWait(sithCog *ctx)
 {
-    float fireRate = sithCogExec_PopFlex(ctx);
+    cog_flex_t fireRate = sithCogExec_PopFlex(ctx);
     sithThing* weapon = sithCogExec_PopThing(ctx);
 
     if ( weapon && weapon == sithPlayer_pLocalPlayerThing && fireRate >= -1.0 )
@@ -1301,7 +1276,7 @@ void sithCogFunction_SetFireWait(sithCog *ctx)
 
 void sithCogFunction_SetMountWait(sithCog *ctx)
 {
-    float mountWait = sithCogExec_PopFlex(ctx);
+    cog_flex_t mountWait = sithCogExec_PopFlex(ctx);
     sithThing* weapon = sithCogExec_PopThing(ctx);
 
     if ( weapon && weapon == sithPlayer_pLocalPlayerThing && mountWait >= -1.0 )
@@ -1518,15 +1493,13 @@ void sithCogFunction_SetTeamScore(sithCog *ctx)
 
 void sithCogFunction_GetTimeLimit(sithCog *a1)
 {
-    float a2; // ST04_4
-
-    a2 = (double)(unsigned int)sithNet_multiplayer_timelimit * 0.000016666667;
+    cog_flex_t a2 = (flex_d_t)(unsigned int)sithNet_multiplayer_timelimit * 0.000016666667;
     sithCogExec_PushFlex(a1, a2);
 }
 
 void sithCogFunction_SetTimeLimit(sithCog *ctx)
 {
-    float v1 = sithCogExec_PopFlex(ctx);
+    cog_flex_t v1 = sithCogExec_PopFlex(ctx);
     if ( v1 >= 0.0 )
         sithNet_multiplayer_timelimit = (int)(v1 * 60000.0);
 }
@@ -1543,7 +1516,7 @@ void sithCogFunction_SetScoreLimit(sithCog *ctx)
 
 void sithCogFunction_ChangeFireRate(sithCog *ctx)
 {
-    float fireRate = sithCogExec_PopFlex(ctx);
+    cog_flex_t fireRate = sithCogExec_PopFlex(ctx);
     sithThing* player = sithCogExec_PopThing(ctx);
 
     if ( player && player == sithPlayer_pLocalPlayerThing && fireRate > 0.0 )
@@ -1581,11 +1554,8 @@ void sithCogFunction_SetCameraFocii(sithCog *ctx)
 // MOTS added
 void sithCogFunction_Pow(sithCog *ctx)
 {
-    float fVar2;
-    float fVar3;
-    
-    fVar2 = sithCogExec_PopFlex(ctx);
-    fVar3 = sithCogExec_PopFlex(ctx);
+    cog_flex_t fVar2 = sithCogExec_PopFlex(ctx);
+    cog_flex_t fVar3 = sithCogExec_PopFlex(ctx);
     if ((fVar2 == 0.0) && (fVar3 == 0.0)) {
         sithCogExec_PushFlex(ctx,0.0);
         return;
@@ -1605,11 +1575,10 @@ void sithCogFunction_Wakeup(sithCog *pCtx)
 // MOTS added
 void sithCogFunction_Sin(sithCog *ctx)
 {
-    float angle;
-    float outSin;
-    float outCos;
+    flex_t outSin;
+    flex_t outCos;
     
-    angle = sithCogExec_PopFlex(ctx);
+    cog_flex_t angle = sithCogExec_PopFlex(ctx);
     stdMath_SinCos(angle,&outSin,&outCos);
     sithCogExec_PushFlex(ctx,outSin);
 }
@@ -1617,11 +1586,10 @@ void sithCogFunction_Sin(sithCog *ctx)
 // MOTS added
 void sithCogFunction_Cos(sithCog *ctx)
 {
-    float angle;
-    float outSin;
-    float outCos;
+    flex_t outSin;
+    flex_t outCos;
     
-    angle = sithCogExec_PopFlex(ctx);
+    cog_flex_t angle = sithCogExec_PopFlex(ctx);
     stdMath_SinCos(angle,&outSin,&outCos);
     sithCogExec_PushFlex(ctx,outCos);
 }
@@ -1629,9 +1597,7 @@ void sithCogFunction_Cos(sithCog *ctx)
 // MOTS added
 void sithCogFunction_Tan(sithCog *ctx)
 {
-    float fVar1;
-    
-    fVar1 = sithCogExec_PopFlex(ctx);
+    cog_flex_t fVar1 = sithCogExec_PopFlex(ctx);
     fVar1 = stdMath_Tan(fVar1);
     sithCogExec_PushFlex(ctx,fVar1);
 }
@@ -1670,8 +1636,8 @@ void sithCogFunction_DebugBreak(sithCog *ctx)
 // MOTS added
 void sithCogFunction_WorldFlash(sithCog *ctx)
 {
-    float arg2 = sithCogExec_PopFlex(ctx);
-    float arg1 = sithCogExec_PopFlex(ctx);
+    cog_flex_t arg2 = sithCogExec_PopFlex(ctx);
+    cog_flex_t arg1 = sithCogExec_PopFlex(ctx);
     sithRender_WorldFlash(arg1, arg2);
 }
 
@@ -1688,15 +1654,15 @@ void sithCogFunction_GetSysDate(sithCog *ctx)
     SYSTEMTIME local_10;
 
     GetLocalTime(&local_10);
-    local_1c.x = (float)(uint)local_10.wYear;
-    local_1c.y = (float)(uint)local_10.wMonth;
-    local_1c.z = (float)(local_10._6_4_ & 0xffff);
+    local_1c.x = (cog_flex_t)(uint)local_10.wYear;
+    local_1c.y = (cog_flex_t)(uint)local_10.wMonth;
+    local_1c.z = (cog_flex_t)(local_10._6_4_ & 0xffff);
     */
 
     if (tm) {
-        out.x = (float)(tm->tm_year + 1900); // year
-        out.y = (float)(tm->tm_mon + 1); // month
-        out.z = (float)(tm->tm_mday); // day
+        out.x = (cog_flex_t)(tm->tm_year + 1900); // year
+        out.y = (cog_flex_t)(tm->tm_mon + 1); // month
+        out.z = (cog_flex_t)(tm->tm_mday); // day
     }
     else {
         rdVector_Zero3(&out);
@@ -1717,15 +1683,15 @@ void sithCogFunction_GetSysTime(sithCog *ctx)
     /*
     _SYSTEMTIME local_10;
     GetLocalTime(&local_10);
-    out.x = (float)(uint)local_10.wHour;
-    out.y = (float)(uint)local_10.wMinute;
-    out.z = (float)(uint)local_10.wSecond;
+    out.x = (cog_flex_t)(uint)local_10.wHour;
+    out.y = (cog_flex_t)(uint)local_10.wMinute;
+    out.z = (cog_flex_t)(uint)local_10.wSecond;
     */
 
     if (tm) {
-        out.x = (float)(tm->tm_hour);
-        out.y = (float)(tm->tm_min);
-        out.z = (float)(tm->tm_sec);
+        out.x = (cog_flex_t)(tm->tm_hour);
+        out.y = (cog_flex_t)(tm->tm_min);
+        out.z = (cog_flex_t)(tm->tm_sec);
     }
     else {
         rdVector_Zero3(&out);
@@ -1738,33 +1704,26 @@ void sithCogFunction_GetSysTime(sithCog *ctx)
 // MOTS added
 void sithCogFunction_SendMessageExRadius(sithCog *ctx)
 {
-    float fVar1;
-    float fVar2;
-    float fVar3;
-    float param0;
-    float param1;
+    cog_flex_t fVar1;
+    cog_flex_t fVar2;
+    cog_flex_t fVar3;
     int message;
     uint32_t uVar4;
     int iVar5;
     sithThing *sender;
-    float fVar6;
     int local_28;
     rdVector3 local_1c;
-    float local_10;
-    float local_c;
-    float local_8;
-    float local_4;
 
-    local_4 = sithCogExec_PopFlex(ctx);
-    local_8 = sithCogExec_PopFlex(ctx);
-    local_c = sithCogExec_PopFlex(ctx);
-    local_10 = sithCogExec_PopFlex(ctx);
+    cog_flex_t local_4 = sithCogExec_PopFlex(ctx);
+    cog_flex_t local_8 = sithCogExec_PopFlex(ctx);
+    cog_flex_t local_c = sithCogExec_PopFlex(ctx);
+    cog_flex_t local_10 = sithCogExec_PopFlex(ctx);
     message = sithCogExec_PopInt(ctx);
     uVar4 = sithCogExec_PopInt(ctx);
-    fVar6 = sithCogExec_PopFlex(ctx);
+    cog_flex_t fVar6 = sithCogExec_PopFlex(ctx);
     iVar5 = sithCogExec_PopVector3(ctx,&local_1c);
-    param1 = local_c;
-    param0 = local_10;
+    cog_flex_t param1 = local_c;
+    cog_flex_t param0 = local_10;
     if ((((iVar5 != 0) && (-1 < message)) && (message < SITH_MESSAGE_ENTERBUBBLE)) 
         && (local_28 = sithWorld_pCurrentWorld->numThings, -1 < local_28)) 
     {
@@ -1774,7 +1733,7 @@ void sithCogFunction_SendMessageExRadius(sithCog *ctx)
         {
             sender = &sithWorld_pCurrentWorld->things[iVar5_idx];
             if (((((uVar4 & 1 << (sender->type & 0x1f)) != 0) 
-                && ((sender->thingflags & 0x80202) == 0)) 
+                && ((sender->thingflags & (SITH_TF_DISABLED|SITH_TF_DEAD|SITH_TF_WILLBEREMOVED)) == 0))
                 && ((sender->type != 10 || ((uVar4 & 0x400) != 0)))) 
                 && (fVar3 = (sender->position).x - local_1c.x, fVar1 = (sender->position).y - local_1c.y,
                     fVar2 = (sender->position).z - local_1c.z,
@@ -1791,7 +1750,7 @@ void sithCogFunction_SendMessageExRadius(sithCog *ctx)
 
 
 
-void sithCogFunction_Startup(void* ctx)
+void sithCogFunction_Startup(sithCogSymboltable* ctx)
 {
     sithCogScript_RegisterVerb(ctx, sithCogFunction_Sleep, "sleep");
     if (Main_bMotsCompat) {

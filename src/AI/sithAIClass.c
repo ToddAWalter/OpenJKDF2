@@ -2,6 +2,7 @@
 
 #include "General/stdHashTable.h"
 #include "General/stdMath.h"
+#include "General/stdString.h"
 #include "World/sithWorld.h"
 #include "World/jkPlayer.h"
 #include "AI/sithAI.h"
@@ -16,7 +17,7 @@ int sithAIClass_Startup()
 
 void sithAIClass_Shutdown()
 {
-    if ( sithAIClass_hashmap )
+    if (sithAIClass_hashmap)
     {
         stdHashTable_Free(sithAIClass_hashmap);
         sithAIClass_hashmap = 0;
@@ -30,7 +31,7 @@ int sithAIClass_New(sithWorld *world, int a2)
 
     result = (intptr_t)pSithHS->alloc(sizeof(sithAIClass) * a2);
     world->aiclasses = (sithAIClass *)result;
-    if ( result )
+    if (result)
     {
         _memset((void *)result, 0, sizeof(sithAIClass) * a2);
         world->numAIClasses = a2;
@@ -50,43 +51,44 @@ int sithAIClass_ParseSection(sithWorld *world, int a2)
     int numAIClasses; // ebx
     sithAIClass *aiclasses; // eax
 
-    if ( a2 )
+    if (a2) {
         return 0;
+    }
     stdConffile_ReadArgs();
-    if ( _strcmp(stdConffile_entry.args[0].value, "world") || _strcmp(stdConffile_entry.args[1].value, "aiclasses") )
+    if (_strcmp(stdConffile_entry.args[0].value, "world") || _strcmp(stdConffile_entry.args[1].value, "aiclasses")) {
         return 0;
+    }
     numAIClasses = _atoi(stdConffile_entry.args[2].value);
-    if ( !numAIClasses )
-        return 1;
-    aiclasses = (sithAIClass *)pSithHS->alloc(sizeof(sithAIClass) * numAIClasses);
-    world->aiclasses = aiclasses;
-    if ( aiclasses )
-    {
-        _memset(aiclasses, 0, sizeof(sithAIClass) * numAIClasses);
-        world->numAIClassesLoaded = 0;
-        world->numAIClasses = numAIClasses;
-        if ( stdConffile_ReadArgs() )
-        {
-            while ( _strcmp(stdConffile_entry.args[0].value, "end") )
-            {
-                if ( !sithAIClass_Load(stdConffile_entry.args[1].value) )
-                {
-                    stdPrintf(pSithHS->errorPrint, ".\\Ai\\sithAIClass.c", 172, "Parse error while reading aiclasses, line %d.\n", stdConffile_linenum);
-                    return 0;
-                }
-                if ( !stdConffile_ReadArgs() )
-                    break;
-            }
-        }
+    if (!numAIClasses) {
         return 1;
     }
-    else
+    aiclasses = (sithAIClass *)pSithHS->alloc(sizeof(sithAIClass) * numAIClasses);
+    world->aiclasses = aiclasses;
+    if (!aiclasses)
     {
         world->numAIClasses = 0;
         world->numAIClassesLoaded = 0;
         stdPrintf(pSithHS->errorPrint, ".\\Ai\\sithAIClass.c", 176, "Memory error while reading aiclasses, line %d.\n", stdConffile_linenum);
         return 0;
     }
+    
+    _memset(aiclasses, 0, sizeof(sithAIClass) * numAIClasses);
+    world->numAIClassesLoaded = 0;
+    world->numAIClasses = numAIClasses;
+    if ( stdConffile_ReadArgs() )
+    {
+        while ( _strcmp(stdConffile_entry.args[0].value, "end") )
+        {
+            if ( !sithAIClass_Load(stdConffile_entry.args[1].value) )
+            {
+                stdPrintf(pSithHS->errorPrint, ".\\Ai\\sithAIClass.c", 172, "Parse error while reading aiclasses, line %d.\n", stdConffile_linenum);
+                return 0;
+            }
+            if ( !stdConffile_ReadArgs() )
+                break;
+        }
+    }
+    return 1;
 }
 
 sithAIClass* sithAIClass_Load(char *fpath)
@@ -115,12 +117,21 @@ sithAIClass* sithAIClass_Load(char *fpath)
 
     _memset(aiclass, 0, sizeof(sithAIClass));
 
-    _strncpy(aiclass->fpath, fpath, 0x1Fu);
-    aiclass->fpath[31] = 0;
+#ifdef SITH_DEBUG_STRUCT_NAMES
+    stdString_SafeStrCopy(aiclass->fpath, fpath, 32);
+#endif
+#ifdef STDHASHTABLE_CRC32_KEYS
+    aiclass->fpathcrc = stdCrc32(fpath, strlen(fpath));
+#endif
 
     if ( sithAIClass_LoadEntry(fullpath, aiclass) )
     {
+#ifdef SITH_DEBUG_STRUCT_NAMES
+            // The copies of names are load-bearing, SetKeyVal stores a reference
         stdHashTable_SetKeyVal(sithAIClass_hashmap, aiclass->fpath, aiclass);
+#else
+        stdHashTable_SetKeyVal(sithAIClass_hashmap, fpath, aiclass);
+#endif
         aiclass->index = world->numAIClassesLoaded++;
         
         return aiclass;
@@ -140,9 +151,9 @@ int sithAIClass_LoadEntry(char *fpath, sithAIClass *aiclass)
     sithAICommand *instinct; // eax
     uint32_t v11; // eax
     char jkl_fname[128]; // [esp+18h] [ebp-8Ch] BYREF
-    float a3; // [esp+98h] [ebp-Ch] BYREF
-    float a4; // [esp+A0h] [ebp-4h] BYREF
-    float fpathb; // [esp+ACh] [ebp+8h]
+    flex_t a3; // [esp+98h] [ebp-Ch] BYREF
+    flex_t a4; // [esp+A0h] [ebp-4h] BYREF
+    flex_t fpathb; // [esp+ACh] [ebp+8h]
 
     _sprintf(jkl_fname, "%s%1d", fpath, jkPlayer_setDiff);
     if ( stdConffile_OpenRead(jkl_fname) || (result = stdConffile_OpenRead(fpath)) != 0 )
@@ -183,7 +194,7 @@ int sithAIClass_LoadEntry(char *fpath, sithAIClass *aiclass)
                 }
                 else if ( !_strcmp(arg->key, "fov") )
                 {
-                    float fov = _atof(arg->value) * 0.5;
+                    flex_t fov = _atof(arg->value) * 0.5;
                     stdMath_SinCos(fov, &a3, &a4);
                     aiclass->fov = a4;
                 }
@@ -215,7 +226,7 @@ int sithAIClass_LoadEntry(char *fpath, sithAIClass *aiclass)
                             }
                             else
                             {
-                                float v15 = _atof(stdConffile_entry.args[1+v11].value);
+                                flex_t v15 = _atof(stdConffile_entry.args[1+v11].value);
                                 entry->argsAsFloat[v11] = v15;
                                 entry->argsAsInt[v11] = (int)v15;
                             }
@@ -238,22 +249,15 @@ int sithAIClass_LoadEntry(char *fpath, sithAIClass *aiclass)
 
 void sithAIClass_Free(sithWorld *world)
 {
-    unsigned int v1; // edi
-    int v2; // ebx
-
-    if ( world->aiclasses )
+    if (world->aiclasses)
     {
-        v1 = 0;
-        if ( world->numAIClassesLoaded )
+        for (uint32_t i = 0; i < world->numAIClassesLoaded; i++)
         {
-            v2 = 0;
-            do
-            {
-                stdHashTable_FreeKey(sithAIClass_hashmap, world->aiclasses[v2].fpath);
-                ++v1;
-                ++v2;
-            }
-            while ( v1 < world->numAIClassesLoaded );
+#ifdef STDHASHTABLE_CRC32_KEYS
+            stdHashTable_FreeKeyCrc32(sithAIClass_hashmap, world->aiclasses[i].fpathcrc);
+#else
+            stdHashTable_FreeKey(sithAIClass_hashmap, world->aiclasses[i].fpath);
+#endif
         }
         pSithHS->free(world->aiclasses);
         world->aiclasses = 0;

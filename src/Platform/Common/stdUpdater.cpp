@@ -42,10 +42,13 @@ int stdUpdater_bTestUpdate = 0;
 char stdUpdater_pUpdaterUrl[SITHCVAR_MAX_STRLEN];
 char stdUpdater_pWin64UpdateFilename[SITHCVAR_MAX_STRLEN];
 char stdUpdater_pMacosUpdateFilename[SITHCVAR_MAX_STRLEN];
-char* stdUpdater_pUpdateFilename = "";
+char* stdUpdater_pUpdateFilename = (char*)"";
 
 void stdUpdater_StartupCvars()
 {
+#ifdef TARGET_TWL
+    return;
+#endif
     sithCvar_RegisterBool("net_disableUpdates", 0, &stdUpdater_bDisableUpdates, CVARFLAG_GLOBAL);
     sithCvar_RegisterBool("net_testUpdate", 0, &stdUpdater_bTestUpdate, CVARFLAG_GLOBAL | CVARFLAG_UPDATABLE_DEFAULT);
     sithCvar_RegisterStr("net_updaterUrl", STDUPDATER_DEFAULT_URL, &stdUpdater_pUpdaterUrl, CVARFLAG_GLOBAL | CVARFLAG_UPDATABLE_DEFAULT);
@@ -61,6 +64,9 @@ void stdUpdater_StartupCvars()
 
 void stdUpdater_Reset()
 {
+#ifdef TARGET_TWL
+    return;
+#endif
     stdUpdater_strBrowserDownloadUrl = "";
     stdUpdater_strUpdateVersion = "";
     stdUpdater_strDlFname = "";
@@ -73,10 +79,9 @@ int stdUpdater_CheckForUpdates()
 {
     stdUpdater_Reset();
 
-#ifdef PLATFORM_LINUX
+#if defined(PLATFORM_LINUX) || defined(ARCH_WASM) || defined(TARGET_TWL)
     return 0;
-#endif
-
+#else
     if (stdUpdater_bDisableUpdates) {
         return 0;
     }
@@ -157,10 +162,14 @@ int stdUpdater_CheckForUpdates()
         stdPlatform_Printf("stdUpdater: Failed to parse JSON?\n");
         return 0;
     }
+#endif // defined(PLATFORM_LINUX) || defined(ARCH_WASM) || defined(TARGET_TWL)
 }
 
 void stdUpdater_GetUpdateText(wchar_t* pOut, size_t outSz)
 {
+#ifdef TARGET_TWL
+    return;
+#endif
     // TODO: i8n
     if (stdUpdater_bCompletedUpdate) {
 #if defined(WIN64_STANDALONE)
@@ -180,6 +189,9 @@ void stdUpdater_GetUpdateText(wchar_t* pOut, size_t outSz)
 
 void stdUpdater_Win64UpdateThread()
 {
+#ifdef TARGET_TWL
+    return;
+#endif
     char buffer[1024];
     char **rc;
     int file_count;
@@ -298,7 +310,7 @@ int stdUpdater_UpdateThread(void* unused)
 
 void stdUpdater_DoUpdate()
 {
-#if defined(PLATFORM_LINUX)
+#if defined(PLATFORM_LINUX) || defined(TARGET_TWL)
     stdUpdater_bFoundUpdate = false;
     stdUpdater_bDownloading = false;
     stdUpdater_bCompletedUpdate = false;

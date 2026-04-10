@@ -25,10 +25,10 @@ typedef struct rdParticle
     uint32_t numVertices;
     rdVector3* vertices;
     int* vertexCel;
-    float diameter;
-    float radius;
+    flex_t diameter;
+    flex_t radius;
     rdMaterial* material;
-    float cloudRadius;
+    flex_t cloudRadius;
     int hasVertices;
     rdVector3 insertOffset;
 } rdParticle;
@@ -36,15 +36,15 @@ typedef struct rdParticle
 typedef rdParticle* (__cdecl *rdParticleLoader_t)(char*);
 
 void rdParticle_RegisterLoader(rdParticleLoader_t loader);
-rdParticle* rdParticle_New(int numVertices, float size, rdMaterial *material, int lightingMode, int allocateVertices);
-int rdParticle_NewEntry(rdParticle *particle, int numVertices, float size, rdMaterial *material, int lightingMode, int allocateVertices);
+rdParticle* rdParticle_New(int numVertices, flex_t size, rdMaterial *material, int lightingMode, int allocateVertices);
+int rdParticle_NewEntry(rdParticle *particle, int numVertices, flex_t size, rdMaterial *material, int lightingMode, int allocateVertices);
 rdParticle* rdParticle_Clone(rdParticle *particle);
 void rdParticle_Free(rdParticle *particle);
 void rdParticle_FreeEntry(rdParticle *particle);
 rdParticle* rdParticle_Load(char *path);
 int rdParticle_LoadEntry(char *fpath, rdParticle *particle);
 int rdParticle_Write(char *writePath, rdParticle *particle, char *madeBy);
-int rdParticle_Draw(rdThing *thing, rdMatrix34 *matrix_4_3);
+MATH_FUNC int rdParticle_Draw(rdThing *thing, rdMatrix34 *matrix_4_3);
 
 //static void (*rdParticle_Draw)(rdThing *thing, rdMatrix34 *matrix) = (void*)rdParticle_Draw_ADDR;
 

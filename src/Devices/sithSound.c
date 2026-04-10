@@ -9,6 +9,15 @@
 
 int sithSound_Startup()
 {
+#ifdef TARGET_TWL
+    if (openjkdf2_bIsExtraLowMemoryPlatform)
+        sithSound_maxDataLoaded = 0x60000;
+    else
+        sithSound_maxDataLoaded = 0x200000;
+#elif defined(QOL_IMPROVEMENTS)
+    sithSound_maxDataLoaded = 0x4000000; // 64MiB
+#endif
+
     if ( stdSound_Startup() )
     {
         sithSound_hashtable = stdHashTable_New(256);
@@ -111,13 +120,13 @@ int sithSound_New(sithWorld *world, int num)
 
 sithSound* sithSound_LoadEntry(char *sound_fname, int a2)
 {
-    int sound_file; // ebp
+    int32_t sound_file; // ebp
     sithSound *sound; // esi
-    int v5; // edi
+    int32_t v5; // edi
     char *v6; // esi
-    unsigned int v7; // eax
-    unsigned int v10; // eax
-    unsigned int frequencyKHz; // eax
+    uint32_t v7; // eax
+    uint32_t v10; // eax
+    uint32_t frequencyKHz; // eax
     struct HostServices *v12; // ecx
     char tmp[128]; // [esp+14h] [ebp-80h] BYREF
     char tmp2[128];
@@ -228,7 +237,7 @@ int sithSound_LoadFileData(sithSound *sound)
         return 0;
 
     if ( sound->bufferBytes + sithSound_curDataLoaded > sithSound_maxDataLoaded )
-        sithSound_StopAll(sound->bufferBytes + 0x19000);
+        sithSound_FreeUpMemory(sound->bufferBytes + 0x19000);
     stdSound_buffer_t* dsoundBuf = stdSound_BufferCreate(sound->bStereo, sound->sampleRateHz, sound->bitsPerSample, sound->bufferBytes);
     if ( dsoundBuf )
     {
@@ -281,8 +290,9 @@ LABEL_11:
 
 int sithSound_UnloadData(sithSound *sound)
 {
-    if (!(sound->isLoaded & 1))
+    if (!(sound->isLoaded & 1)) {
         return 0;
+    }
 
     stdSound_BufferRelease(sound->dsoundBuffer2);
     sound->isLoaded &= ~1u;
@@ -319,7 +329,7 @@ int sithSound_ReadDataFromFd(int fd, sithSound *sound)
     return 0;
 }
 
-int sithSound_StopAll(uint32_t idk)
+int sithSound_FreeUpMemory(uint32_t numBytesNeeded)
 {
     sithWorld *world; // edi
     int result; // eax
@@ -338,8 +348,15 @@ int sithSound_StopAll(uint32_t idk)
             world = sithWorld_pStatic;
             if (!world)
                 world = sithWorld_pCurrentWorld;
+            else if(!world) // Added: allow freeing sounds during loading
+                world = sithWorld_pLoading;
             else
                 v8 = 0;
+        }
+
+        // Added: Prevent nullptr deref
+        if (!world) {
+            return 0;
         }
 
         for (uint32_t v3 = sithSound_var4; v3 < world->numSoundsLoaded; v3++)
@@ -364,7 +381,7 @@ int sithSound_StopAll(uint32_t idk)
                         sithSound_curDataLoaded -= world->sounds[v3].bufferBytes;
                         result = v9;
                     }
-                    if ( result >= idk )
+                    if ( result >= numBytesNeeded )
                     {
                         sithSound_var5 = v8;
                         sithSound_var4 = v3 + 1;
@@ -388,17 +405,17 @@ stdSound_buffer_t* sithSound_InitFromPath(char *path)
     int bufferLen; // edi
     stdSound_buffer_t *createdBuf; // eax
     stdSound_buffer_t *dsoundBuf; // esi
-    int bStereo; // [esp+Ch] [ebp-94h] BYREF
+    int32_t bStereo; // [esp+Ch] [ebp-94h] BYREF
     int32_t bufferMaxSize; // [esp+10h] [ebp-90h] BYREF
     uint32_t nSamplesPerSec; // [esp+14h] [ebp-8Ch] BYREF
-    int seekOffs; // [esp+18h] [ebp-88h] BYREF
-    int bitsPerSample; // [esp+1Ch] [ebp-84h] BYREF
+    int32_t seekOffs; // [esp+18h] [ebp-88h] BYREF
+    int32_t bitsPerSample; // [esp+1Ch] [ebp-84h] BYREF
     char tmp[128]; // [esp+20h] [ebp-80h] BYREF
 
     if (!path)
         return NULL;
 
-    _sprintf(tmp, "sound%c%s", 92, path);
+    _sprintf(tmp, "sound%c%s", LEC_PATH_SEPARATOR_CHR, path);
     fd = pSithHS->fileOpen(tmp, "rb");
     if ( fd )
     {

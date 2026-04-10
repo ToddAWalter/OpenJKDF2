@@ -8,6 +8,10 @@
 #include "Main/jkRes.h"
 #include "stdPlatform.h"
 
+#ifdef TARGET_TWL
+#include <unistd.h>
+#endif
+
 #if defined(SDL2_RENDER) && !defined(ARCH_WASM) && !defined(TARGET_ANDROID)
 
 const char* aRequiredAssets[] = {
@@ -42,7 +46,7 @@ int InstallHelper_copy(const char* in_path, const char* out_path)
 {
     size_t n;
     FILE* in=NULL, * out=NULL;
-    char* buf = calloc(BUF_SIZE, 1);
+    char* buf = (char*)calloc(BUF_SIZE, 1);
     if((in = fopen(in_path, "rb")) && (out = fopen(out_path, "wb")))
     while((n = fread(buf, 1, BUF_SIZE, in)) && fwrite(buf, 1, n, out));
     free(buf);
@@ -62,14 +66,14 @@ int InstallHelper_CopyFile(const char* pFolder, const char* pName)
     strncpy(tmpTo, pName, sizeof(tmpTo)-1);
 
 #ifdef LINUX
-    char *r = malloc(strlen(tmp) + 16);
+    char *r = (char*)malloc(strlen(tmp) + 16);
     if (casepath(tmp, r))
     {
         strcpy(tmp, r);
     }
     free(r);
 
-    r = malloc(strlen(tmpTo) + 16);
+    r = (char*)malloc(strlen(tmpTo) + 16);
     if (casepath(tmpTo, r))
     {
         strcpy(tmpTo, r);
@@ -154,14 +158,14 @@ int InstallHelper_CopyFileDisk(const char* pFolder, const char* pName)
     strncpy(tmpTo, pName, sizeof(tmpTo)-1);
 
 #ifdef LINUX
-    char *r = malloc(strlen(tmp) + 16);
+    char *r = (char*)malloc(strlen(tmp) + 16);
     if (casepath(tmp, r))
     {
         strcpy(tmp, r);
     }
     free(r);
 
-    r = malloc(strlen(tmpTo) + 16);
+    r = (char*)malloc(strlen(tmpTo) + 16);
     if (casepath(tmpTo, r))
     {
         strcpy(tmpTo, r);
@@ -270,7 +274,7 @@ int InstallHelper_GetLocalDataDir(char* pOut, size_t pOut_sz, int bChdir)
         stdFileUtil_MkDir(fname);
         if (bChdir) {
             chdir(fname);
-            stdPlatform_Printf("Using OPENJKDF2_ROOT, root directory: %s\n", fname);
+            stdPlatform_Printf("Using %s, root directory: %s\n", INSTALL_OVERRIDE_ENVVAR_NAME, fname);
         }
         bIsOverride = 1;
     }
@@ -364,7 +368,7 @@ int InstallHelper_GetLocalDataDir(char* pOut, size_t pOut_sz, int bChdir)
         stdFileUtil_MkDir(fname);
         if (bChdir) {
             chdir(fname);
-            stdPlatform_Printf("Using OPENJKDF2_ROOT, root directory: %s\n", fname);
+            stdPlatform_Printf("Using %s, root directory: %s\n", INSTALL_OVERRIDE_ENVVAR_NAME, fname);
         }
     }
     else if ((homedir = getenv("AppData")) != NULL) {
@@ -1020,7 +1024,7 @@ void InstallHelper_CheckRequiredAssets(int doInstall)
 
     if (!missingRequireds) return;
 
-    bigList = malloc(bigList_len);
+    bigList = (char*)malloc(bigList_len);
     if (!bigList) return;
     memset(bigList, 0, bigList_len);
 
@@ -1125,6 +1129,16 @@ void InstallHelper_SetCwd()
     else {
         chdir("mots/");
     }
+#elif defined(TARGET_TWL)
+    char tmp[128];
+    extern char openjkdf2_aOrigCwd[512];
+    if (!Main_bMotsCompat) {
+        snprintf(tmp, sizeof(tmp)-1, "%sjk1/", openjkdf2_aOrigCwd);
+    }
+    else {
+        snprintf(tmp, sizeof(tmp)-1, "%smots/", openjkdf2_aOrigCwd);
+    }
+    chdir(tmp);
 #else
     if (!Main_bMotsCompat) {
         chdir("/jk1/");

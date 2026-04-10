@@ -16,11 +16,89 @@
 
 #include "jk.h"
 
+const char* sithDSS_IdToStr(int id)
+{
+    const char* strs[DSS_MAX] = 
+    {
+        "UNK_0",
+        "DSS_THINGPOS",
+        "DSS_CHAT",
+        "DSS_SECTORFLAGS",
+        "DSS_FIREPROJECTILE",
+        "DSS_DEATH",
+        "DSS_DAMAGE",
+        "DSS_SETTHINGMODEL",
+        "DSS_SENDTRIGGER",
+        "DSS_PLAYKEY",
+        "DSS_PLAYSOUND",
+        "DSS_SYNCTHING",
+        "DSS_THINGFULLDESC",
+        "DSS_SYNCCOG",
+        "DSS_SURFACESTATUS",
+        "DSS_AISTATUS",
+        "DSS_INVENTORY",
+        "DSS_SURFACE",
+        "DSS_SECTORSTATUS",
+        "DSS_PLAYKEYMODE",
+        "DSS_PATHMOVE",
+        "DSS_SYNCPUPPET",
+        "DSS_SYNCTHINGATTACHMENT",
+        "DSS_SYNCEVENTS",
+        "DSS_SYNCCAMERAS",
+        "DSS_TAKEITEM1",
+        "DSS_TAKEITEM2",
+        "DSS_STOPKEY",
+        "DSS_STOPSOUND",
+        "DSS_CREATETHING",
+        "DSS_SYNCPALEFFECTS",
+        "DSS_ID_1F",
+        "DSS_LEAVEJOIN",
+        "DSS_WELCOME",
+        "DSS_JOINREQUEST",
+        "DSS_DESTROYTHING",
+        "DSS_JOINING",
+        "DSS_PLAYSOUNDMODE",
+        "DSS_PING",
+        "DSS_PINGREPLY",
+        "DSS_RESET",
+        "DSS_ENUMPLAYERS",
+        "DSS_QUIT",
+        "DSS_ID_2B",
+        "DSS_MOTS_NEW_1",
+        "DSS_MOTS_NEW_2",
+        "DSS_ID_2E",
+        "DSS_ID_2F",
+        "DSS_JKENABLESABER",
+        "DSS_SABERINFO3",
+        "DSS_ID_32",
+        "DSS_ID_33",
+        "DSS_ID_34",
+        "DSS_HUDTARGET",
+        "DSS_ID_36",
+        "DSS_JKPRINTUNISTRING",
+        "DSS_ENDLEVEL",
+        "DSS_SABERINFO1",
+        "DSS_SABERINFO2",
+        "DSS_JKSETWEAPONMESH",
+        "DSS_SETTEAM",
+        "DSS_61",
+        "DSS_62",
+        "DSS_63",
+        "DSS_64",
+        "DSS_MAX",
+    };
+    if (id < 0) return "UNK_TOOSMAll";
+    if (id > DSS_MAX) {
+        return "UNK_TOOLARGE";
+    }
+    return strs[id];
+}
+
 void sithDSS_SendSurfaceStatus(sithSurface *surface, int sendto_id, int mpFlags)
 {
     NETMSG_START;
 
-    NETMSG_PUSHS16(surface->field_0);
+    NETMSG_PUSHS16(surface->index);
     NETMSG_PUSHU32(surface->surfaceFlags);
     if ( surface->surfaceInfo.face.material ) {
         NETMSG_PUSHS32(surface->surfaceInfo.face.material->id);
@@ -47,9 +125,9 @@ void sithDSS_SendSurfaceStatus(sithSurface *surface, int sendto_id, int mpFlags)
 
 int sithDSS_ProcessSurfaceStatus(sithCogMsg *msg)
 {
-    unsigned int v1; // eax
+    uint32_t v1; // eax
     sithSurface *surface; // edi
-    signed int v4; // ecx
+    int32_t v4; // ecx
     
     NETMSG_IN_START(msg);
 
@@ -282,7 +360,7 @@ int sithDSS_ProcessAIStatus(sithCogMsg *msg)
     thing = sithThing_GetThingByIdx(NETMSG_POPS16());
     if ( !thing )
         return 0;
-    if ( thing->thingtype != SITH_THING_ACTOR )
+    if ( thing->controlType != SITH_CT_AI )
         return 0;
     actor = thing->actor;
     if ( !actor )
@@ -442,7 +520,7 @@ void sithDSS_SendSurface(rdSurface *surface, int sendto_id, int mpFlags)
         NETMSG_PUSHU32(surface->signature);
     }
     if (surface->flags & 0x20000)
-        NETMSG_PUSHU32(surface->sithSurfaceParent->field_0);
+        NETMSG_PUSHU32(surface->sithSurfaceParent->index);
     if (surface->flags & 0x100000)
     {
         NETMSG_PUSHVEC3(surface->field_24);

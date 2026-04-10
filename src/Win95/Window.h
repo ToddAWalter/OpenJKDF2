@@ -32,7 +32,7 @@ void Window_GetDrawHandlers(WindowDrawHandler_t *a1, WindowDrawHandler_t *a2);
 //static void (*Window_GetDrawHandlers)(int *a1, int *a2) = (void*)Window_GetDrawHandlers_ADDR;
 //static void (*Window_SetDrawHandlers)(int a1, int a2) = (void*)Window_SetDrawHandlers_ADDR;
 
-static int (*_Window_msg_main_handler)(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) = (void*)Window_msg_main_handler_ADDR;
+//static int (*_Window_msg_main_handler)(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) = (void*)Window_msg_main_handler_ADDR;
 
 // Added
 int Window_DefaultHandler(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam, void* unused);
@@ -42,7 +42,9 @@ extern int Window_isFullscreen;
 void Window_SetHiDpi(int val);
 void Window_SetFullscreen(int val);
 
-#ifdef SDL2_RENDER
+
+extern int Window_screenXSize;
+extern int Window_screenYsSize;
 extern int Window_lastXRel;
 extern int Window_lastYRel;
 extern int Window_lastSampleMs;
@@ -50,7 +52,15 @@ extern int Window_bMouseLeft;
 extern int Window_bMouseRight;
 extern int Window_mouseWheelY;
 extern int Window_mouseWheelX;
+extern int Window_bShouldPopSteamKeyboard;
+extern int Window_bNeedsKeyboardFixed;
 
+#if !defined(SDL2_RENDER) && defined(WIN32)
+//static int (*Window_ShowCursorUnwindowed)(int a1) = (void*)Window_ShowCursorUnwindowed_ADDR;
+//static int (*Window_MessageLoop)() = (void*)Window_MessageLoop_ADDR;
+//static int (*Window_AddMsgHandler)(WindowHandler_t handler) = (void*)Window_AddMsgHandler_ADDR;
+//static int (*Window_RemoveMsgHandler)(WindowHandler_t handler) = (void*)Window_RemoveMsgHandler_ADDR;
+#else
 int Window_Main_Linux(int argc, char** argv);
 //int Window_AddMsgHandler(WindowHandler_t a1);
 //int Window_RemoveMsgHandler(WindowHandler_t a1);
@@ -59,11 +69,6 @@ int Window_MessageLoop();
 void Window_SdlUpdate();
 void Window_SdlVblank();
 void Window_RecreateSDL2Window();
-#else
-static int (*Window_ShowCursorUnwindowed)(int a1) = (void*)Window_ShowCursorUnwindowed_ADDR;
-static int (*Window_MessageLoop)() = (void*)Window_MessageLoop_ADDR;
-//static int (*Window_AddMsgHandler)(WindowHandler_t handler) = (void*)Window_AddMsgHandler_ADDR;
-//static int (*Window_RemoveMsgHandler)(WindowHandler_t handler) = (void*)Window_RemoveMsgHandler_ADDR;
 #endif
 
 #endif // _WINDOW_H

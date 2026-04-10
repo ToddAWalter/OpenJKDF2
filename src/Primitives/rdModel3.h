@@ -9,6 +9,10 @@
 #include "Engine/rdMaterial.h"
 #include "Primitives/rdMatrix.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define rdModel3_RegisterLoader_ADDR (0x00443DA0)
 #define rdModel3_RegisterUnloader_ADDR (0x00443DB0)
 #define rdModel3_ClearFrameCounters_ADDR (0x00443DC0)
@@ -102,9 +106,9 @@ typedef struct rdModel3
     uint32_t geosetSelect;
     uint32_t numHierarchyNodes;
     rdHierarchyNode* hierarchyNodes;
-    float radius;
+    flex_t radius;
     uint32_t field_60;
-    float field_64;
+    flex_t field_64;
     uint32_t field_68;
     uint32_t field_6C;
     uint32_t field_70;
@@ -122,12 +126,12 @@ typedef struct rdMesh
     int textureMode;
     rdVector3* vertices;
     rdVector2* vertexUVs;
-    float* vertices_i;
-    float* vertices_unk;
+    flex_t* vertices_i;
+    flex_t* vertices_unk;
 #ifdef JKM_LIGHTING
-    float* paRedIntensities;
-    float* paGreenIntensities;
-    float* paBlueIntensities;
+    flex_t* paRedIntensities;
+    flex_t* paGreenIntensities;
+    flex_t* paBlueIntensities;
 #endif
     rdFace* faces;
     rdVector3* vertexNormals;
@@ -135,13 +139,13 @@ typedef struct rdMesh
     int numUVs;
     int numFaces;
 #ifdef JKM_LIGHTING
-    float extraLight;
+    flex_t extraLight;
 #endif
-    float radius;
+    flex_t radius;
     int field_58;
     int field_5C;
     int field_60;
-    float field_64;
+    flex_t field_64;
     int field_68;
     int field_6C;
 } rdMesh;
@@ -156,23 +160,23 @@ typedef struct rdMesh
     int textureMode;
     rdVector3* vertices;
     rdVector2* vertexUVs;
-    float* vertices_i;
-    float* vertices_unk;
-    float* paRedIntensities;
-    float* paGreenIntensities;
-    float* paBlueIntensities;
+    flex_t* vertices_i;
+    flex_t* vertices_unk;
+    flex_t* paRedIntensities;
+    flex_t* paGreenIntensities;
+    flex_t* paBlueIntensities;
     int unk4;
     rdFace* faces;
     rdVector3* vertexNormals;
     int numVertices;
     int numUVs;
     int numFaces;
-    float extraLight;
-    float radius;
+    flex_t extraLight;
+    flex_t radius;
     int field_58;
     int field_5C;
     int field_60;
-    float field_64;
+    flex_t field_64;
     int field_68;
     int field_6C;
     
@@ -191,18 +195,25 @@ void rdModel3_Free(rdModel3 *model);
 void rdModel3_FreeEntry(rdModel3 *model);
 void rdModel3_FreeEntryGeometryOnly(rdModel3 *model);
 rdModel3* rdModel3_Validate(rdModel3 *model);
-void rdModel3_CalcBoundingBoxes(rdModel3 *model);
-void rdModel3_BuildExpandedRadius(rdModel3 *model, rdHierarchyNode *node, const rdMatrix34 *matrix);
-void rdModel3_CalcFaceNormals(rdModel3 *model);
-void rdModel3_CalcVertexNormals(rdModel3 *model);
-void rdModel3_CalcNumParents(rdModel3* pModel); // MOTS added
+MATH_FUNC void rdModel3_CalcBoundingBoxes(rdModel3 *model);
+MATH_FUNC void rdModel3_BuildExpandedRadius(rdModel3 *model, rdHierarchyNode *node, const rdMatrix34 *matrix);
+MATH_FUNC void rdModel3_CalcFaceNormals(rdModel3 *model);
+MATH_FUNC void rdModel3_CalcVertexNormals(rdModel3 *model);
+MATH_FUNC void rdModel3_CalcNumParents(rdModel3* pModel); // MOTS added
 rdHierarchyNode* rdModel3_FindNamedNode(char *name, rdModel3 *model);
-int rdModel3_GetMeshMatrix(rdThing *thing, rdMatrix34 *matrix, uint32_t nodeIdx, rdMatrix34 *out);
-int rdModel3_ReplaceMesh(rdModel3 *model, int geosetIdx, int meshIdx, rdMesh *in);
-int rdModel3_Draw(rdThing *thing, rdMatrix34 *matrix_4_3);
-void rdModel3_DrawHNode(rdHierarchyNode *pNode);
-void rdModel3_DrawMesh(rdMesh *meshIn, rdMatrix34 *mat);
-int rdModel3_DrawFace(rdFace *face, int lightFlags);
+MATH_FUNC int rdModel3_GetMeshMatrix(rdThing *thing, rdMatrix34 *matrix, uint32_t nodeIdx, rdMatrix34 *out);
+MATH_FUNC int rdModel3_ReplaceMesh(rdModel3 *model, int geosetIdx, int meshIdx, rdMesh *in);
+MATH_FUNC int rdModel3_Draw(rdThing *thing, rdMatrix34 *matrix_4_3);
+MATH_FUNC void rdModel3_DrawHNode(rdHierarchyNode *pNode);
+MATH_FUNC void rdModel3_DrawMesh(rdMesh *meshIn, rdMatrix34 *mat);
+MATH_FUNC FAST_FUNC int rdModel3_DrawFace(rdFace *face, int lightFlags);
+
+// Added: Data preloading
+void rdModel3_EnsureMaterialData(rdThing *pRdThing);
+
+#ifdef __cplusplus
+}
+#endif
 
 //static int (__cdecl *rdModel3_CalcVertexNormals)(rdModel3 *model) = (void*)rdModel3_CalcVertexNormals_ADDR;
 

@@ -2,6 +2,7 @@
 
 #include "World/sithThing.h"
 #include "World/sithWorld.h"
+#include "General/stdString.h"
 #include "General/stdConffile.h"
 #include "General/stdHashTable.h"
 
@@ -24,7 +25,7 @@ void sithTemplate_Shutdown()
 
 int sithTemplate_New(sithWorld *world, unsigned int numTemplates)
 {
-    world->templates = pSithHS->alloc(sizeof(sithThing) * numTemplates);
+    world->templates = (sithThing*)pSithHS->alloc(sizeof(sithThing) * numTemplates);
     if (!world->templates)
         return 0;
 
@@ -105,7 +106,11 @@ void sithTemplate_FreeWorld(sithWorld *world)
     for (int i = 0; i < world->numTemplatesLoaded; i++)
     {
         rdThing_FreeEntry(&world->templates[i].rdthing);
+#ifdef STDHASHTABLE_CRC32_KEYS
+        stdHashTable_FreeKeyCrc32(sithTemplate_hashmap, world->templates[i].templateNameCrc);
+#else
         stdHashTable_FreeKey(sithTemplate_hashmap, world->templates[i].template_name);
+#endif
     }
 
     if ( world->templates )
@@ -155,17 +160,26 @@ sithThing* sithTemplate_CreateEntry(sithWorld *world)
 {
     sithThing *result;
     sithThing tmp;
+    const char* template_name;
 
-    result = (sithThing *)stdHashTable_GetKeyVal(sithTemplate_hashmap, stdConffile_entry.args[0].value);
+    result = (sithThing *)stdHashTable_GetKeyVal(sithTemplate_hashmap, (const char*)stdConffile_entry.args[0].value);
     if ( result )
         return result;
 
-    sithThing_DoesRdThingInit(&tmp);
-    result = stdHashTable_GetKeyVal(sithTemplate_hashmap, stdConffile_entry.args[1].value);
-    sithThing_sub_4CD8A0(&tmp, result);
+    // Added: memset for consistent behavior
+    memset(&tmp, 0, sizeof(tmp));
 
-    _strncpy(tmp.template_name, stdConffile_entry.args[0].value, 0x1Fu);
-    tmp.template_name[31] = 0;
+    sithThing_DoesRdThingInit(&tmp);
+    result = (sithThing *)stdHashTable_GetKeyVal(sithTemplate_hashmap, (const char*)stdConffile_entry.args[1].value);
+    sithThing_InstantiateFromTemplate(&tmp, result);
+
+    template_name = stdConffile_entry.args[0].value;
+#ifdef SITH_DEBUG_STRUCT_NAMES
+    stdString_SafeStrCopy(tmp.template_name, template_name, sizeof(tmp.template_name));
+#endif
+#ifdef STDHASHTABLE_CRC32_KEYS
+    tmp.templateNameCrc = stdCrc32(template_name, strlen(template_name));
+#endif
 
     for (int i = 2; i < stdConffile_entry.numArgs; i++)
     {
@@ -181,7 +195,12 @@ sithThing* sithTemplate_CreateEntry(sithWorld *world)
     result = &world->templates[world->numTemplatesLoaded++];
     tmp.thingIdx = result->thingIdx;
     _memcpy(result, &tmp, sizeof(sithThing));
+#ifdef SITH_DEBUG_STRUCT_NAMES
+    // The copies of names are load-bearing, SetKeyVal stores a reference
     stdHashTable_SetKeyVal(sithTemplate_hashmap, result->template_name, result);
+#else
+    stdHashTable_SetKeyVal(sithTemplate_hashmap, template_name, result);
+#endif
 
     return result;
 }

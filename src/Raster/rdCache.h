@@ -5,6 +5,10 @@
 #include "globals.h"
 #include "Engine/rdMaterial.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define rdCache_Startup_ADDR (0x0043AD60)
 #define rdCache_AdvanceFrame_ADDR (0x0043AD70)
 #define rdCache_FinishFrame_ADDR (0x0043AD80)
@@ -23,19 +27,23 @@
 #define rdCache_ProcFaceCompare_ADDR (0x0043E170)
 
 int rdCache_Startup();
-void rdCache_AdvanceFrame();
-void rdCache_FinishFrame();
-void rdCache_Reset();
+MATH_FUNC void rdCache_AdvanceFrame();
+MATH_FUNC void rdCache_FinishFrame();
+MATH_FUNC void rdCache_Reset();
 void rdCache_ClearFrameCounters();
 rdProcEntry *rdCache_GetProcEntry();
-void rdCache_Flush();
-int rdCache_SendFaceListToHardware();
+MATH_FUNC void rdCache_Flush();
+MATH_FUNC FAST_FUNC int rdCache_SendFaceListToHardware();
 void rdCache_ResetRenderList();
-void rdCache_DrawRenderList();
+MATH_FUNC void rdCache_DrawRenderList();
+#ifndef RDCACHE_RENDER_NGONS
 int rdCache_TriCompare(const void* a_, const void* b_);
+#else
+int rdCache_NGonCompare(const void* a_, const void* b_);
+#endif
 
 int rdCache_ProcFaceCompare(rdProcEntry *a, rdProcEntry *b);
-int rdCache_AddProcFace(int a1, unsigned int num_vertices, char flags);
+MATH_FUNC int rdCache_AddProcFace(int a1, unsigned int num_vertices, char flags);
 
 #ifndef __cplusplus
 static void (*rdCache_DrawFaceUser)(rdProcEntry* face) = (void*)rdCache_DrawFaceUser_ADDR;
@@ -49,6 +57,10 @@ static void (*rdCache_DrawFaceZ)(rdProcEntry* face) = (void*)rdCache_DrawFaceZ_A
 
 //static rdProcEntry* (*rdCache_GetProcEntry)(void) = (void*)rdCache_GetProcEntry_ADDR;
 //static int (*__cdecl rdCache_AddProcFace)(int extdata, unsigned int numVertices, char flags) = (void*)rdCache_AddProcFace_ADDR;
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif // _RDCACHE_H

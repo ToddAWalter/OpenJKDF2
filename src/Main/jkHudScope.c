@@ -40,6 +40,9 @@ void jkHudScope_Shutdown(void)
 
 int jkHudScope_Open(void)
 {
+#ifdef TARGET_TWL
+    return 1;
+#endif
     int iVar1;
     int iVar2;
     stdBitmap *psVar3;
@@ -51,8 +54,8 @@ int jkHudScope_Open(void)
     
     iVar1 = Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].xMin;
     iVar2 = Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].yMin;
-    lVar7 = (int)(Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].xMax - (float)(iVar1 / 2));
-    lVar8 = (int)(Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].yMax - (float)(iVar2 / 2));
+    lVar7 = (int)(Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].xMax - (flex_t)(iVar1 / 2));
+    lVar8 = (int)(Video_modeStruct.aViewSizes[Video_modeStruct.viewSizeIdx].yMax - (flex_t)(iVar2 / 2));
 #ifdef SDL2_RENDER
     iVar1 = Video_format.width;
     iVar2 = Video_format.height;
@@ -84,8 +87,8 @@ int jkHudScope_Open(void)
         _sprintf(local_80,pcVar9,pcVar10);
         psVar3 = stdBitmap_Load2(local_80,0,0);
         *pBmIter->pBitmap = psVar3;
-        pBmIter->unk4 = (int)(((float)pBmIter->unk2 * iVar1) / 640.0) + lVar7;
-        pBmIter->unk5 = (int)(((float)pBmIter->unk3 * iVar2) / 480.0) + lVar8;
+        pBmIter->unk4 = (int)(((flex_t)pBmIter->unk2 * iVar1) / 640.0) + lVar7;
+        pBmIter->unk5 = (int)(((flex_t)pBmIter->unk3 * iVar2) / 480.0) + lVar8;
         switch(pBmIter->unk1) 
         {
             case 0x42:
@@ -113,7 +116,9 @@ int jkHudScope_Open(void)
             Windows_GameErrorMsgbox("ERR_CANNOT_LOAD_FILE %s",local_80);
         }
         else {
+#ifndef RDMATERIAL_MINIMIZE_STRUCTS
             stdBitmap_ConvertColorFormat(&Video_format.format,*pBmIter->pBitmap);
+#endif
         }
 
         pBmIter++;
@@ -130,6 +135,9 @@ int jkHudScope_Open(void)
 
 void jkHudScope_Close(void)
 {
+#ifdef TARGET_TWL
+    return;
+#endif
     jkHudMotsBitmap *pjVar1;
     jkHudMotsFont *pjVar2;
     
@@ -159,6 +167,10 @@ void jkHudScope_Close(void)
 
 void jkHudScope_Draw(void)
 {
+#ifdef TARGET_TWL
+    return;
+#endif
+
     if (!jkHudScope_bOpened) return;
     if (sithWorld_pCurrentWorld->playerThing->type != SITH_THING_PLAYER) return;
 

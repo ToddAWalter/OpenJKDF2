@@ -30,6 +30,8 @@
 #include "Main/jkStrings.h"
 #include "Main/jkMain.h"
 #include "Main/jkEpisode.h"
+#include "General/stdString.h"
+#include "stdPlatform.h"
 #include "jk.h"
 
 void sithGamesave_Setidk(sithSaveHandler_t a1, sithSaveHandler_t a2, sithSaveHandler_t a3, sithSaveHandler_t a4, sithSaveHandler_t a5)
@@ -67,7 +69,7 @@ int sithGamesave_Load(char *saveFname, int debugNextCheckpoint, int a3)
         LEC_PATH_SEPARATOR_CHR, playerName, LEC_PATH_SEPARATOR_CHR, saveFname
     );
 
-    if (stdConffile_OpenMode(fpath, "rb"))
+    if (stdConffile_OpenReadBytesBypass(fpath))
     {
         stdConffile_Close();
         sithGamesave_dword_835914 = a3;
@@ -89,13 +91,16 @@ int sithGamesave_Load(char *saveFname, int debugNextCheckpoint, int a3)
 // MOTS altered
 int sithGamesave_LoadEntry(char *fpath)
 {
-    int curMs; // [esp+Ch] [ebp-650h] BYREF
+    uint32_t curMs; // [esp+Ch] [ebp-650h] BYREF
     char SrcStr[32]; // [esp+10h] [ebp-64Ch] BYREF
     sithGamesave_Header header; // [esp+30h] [ebp-62Ch] BYREF
+#ifdef QOL_IMPROVEMENTS
+    int32_t backup_episodeIdx = 0;
+#endif
 
     int bIsOutdatedSave = 0;
 
-    if ( !stdConffile_OpenMode(fpath, "rb") )
+    if ( !stdConffile_OpenReadBytesBypass(fpath) )
         goto load_fail;
     stdConffile_Read(&header, sizeof(sithGamesave_Header));
 
@@ -122,6 +127,7 @@ int sithGamesave_LoadEntry(char *fpath)
 
     // Added: Fix soundtrack on levels that use disk 2
 #ifdef QOL_IMPROVEMENTS
+    backup_episodeIdx = jkEpisode_mLoad.currentEpisodeEntryIdx;
     if ( jkEpisode_Load(&jkGui_episodeLoad) )
     {
         if (jkEpisode_mLoad.paEntries) {
@@ -133,16 +139,27 @@ int sithGamesave_LoadEntry(char *fpath)
         jkEpisode_mLoad.paEntries = (jkEpisodeEntry *)pHS->alloc(aEnts_size);
         memcpy(jkEpisode_mLoad.paEntries, jkGui_episodeLoad.paEntries, aEnts_size);
 
-        for (int j = 0; j < jkEpisode_mLoad.numSeq; j++)
+        jkEpisode_mLoad.currentEpisodeEntryIdx = backup_episodeIdx;
+        //printf("asdfasdfasdf %u\n", jkEpisode_mLoad.currentEpisodeEntryIdx);
+        if (jkEpisode_mLoad.currentEpisodeEntryIdx > jkEpisode_mLoad.numSeq) {
+            jkEpisode_mLoad.currentEpisodeEntryIdx = 0;
+        }
+
+        if (!jkEpisode_mLoad.currentEpisodeEntryIdx)
         {
-            //printf("%s %s\n", jkEpisode_mLoad.paEntries[j].fileName, v25);
-            if (!__strcmpi(jkEpisode_mLoad.paEntries[j].fileName, SrcStr)) {
-                jkEpisode_mLoad.field_8 = j;
-                jkMain_pEpisodeEnt = &jkEpisode_mLoad.paEntries[j];
-                jkMain_pEpisodeEnt2 = &jkEpisode_mLoad.paEntries[j];
-                break;
+            for (int j = 0; j < jkEpisode_mLoad.numSeq; j++)
+            {
+                //printf("%s %s\n", jkEpisode_mLoad.paEntries[j].fileName, v25);
+                if (!__strcmpi(jkEpisode_mLoad.paEntries[j].fileName, SrcStr)) {
+                    jkEpisode_mLoad.currentEpisodeEntryIdx = j;
+                    break;
+                }
             }
         }
+
+        jkMain_pEpisodeEnt = &jkEpisode_mLoad.paEntries[jkEpisode_mLoad.currentEpisodeEntryIdx];
+        jkMain_pEpisodeEnt2 = &jkEpisode_mLoad.paEntries[jkEpisode_mLoad.currentEpisodeEntryIdx];
+        //printf("asdfasdfasdf %u %s\n", jkEpisode_mLoad.currentEpisodeEntryIdx, jkEpisode_mLoad.paEntries[jkEpisode_mLoad.currentEpisodeEntryIdx].fileName);
     }
 #endif
 
@@ -167,8 +184,8 @@ LABEL_11:
     stdPalEffects_ResetEffectsState(&stdPalEffects_state);
     if ( sithGamesave_func2 )
         sithGamesave_func2();
-    if ( !stdConffile_Read(&curMs, 4) )
-        goto load_fail;
+    if ( !stdConffile_Read(&curMs, sizeof(uint32_t)) )
+        goto load_fail; // TODO: is this a memleak?
     sithTime_SetMs(curMs);
     
     // Added: split this apart, g_sithMode is a struct...
@@ -209,22 +226,27 @@ skip_free_things:
             }
         }
 
-        if ( !stdConffile_Read(&sithComm_netMsgTmp.netMsg.cogMsgId, 4) )
+        if ( !stdConffile_Read(&sithComm_netMsgTmp.netMsg.cogMsgId, sizeof(int32_t)) )
         {
             break;
         }
         
-        if (!stdConffile_Read(&sithComm_netMsgTmp.netMsg.msg_size, 4))
+        if (!stdConffile_Read(&sithComm_netMsgTmp.netMsg.msg_size, sizeof(int32_t)))
         {
-            jk_printf("OpenJKDF2: Save load failed to read msg_size\n");
+            stdPlatform_Printf("OpenJKDF2: Save load failed to read msg_size\n");
             goto load_fail;
         }
 
         //printf("%x %x\n", sithComm_netMsgTmp.netMsg.cogMsgId, sithComm_netMsgTmp.netMsg.msg_size);
+
+        if (sithComm_netMsgTmp.netMsg.msg_size > sizeof(sithComm_netMsgTmp.pktData)) {
+            stdPlatform_Printf("OpenJKDF2: Save load failed to read msg, size 0x%x is too large.\n", sithComm_netMsgTmp.netMsg.msg_size);
+            goto load_fail;
+        }
         
         if (!(!sithComm_netMsgTmp.netMsg.msg_size || stdConffile_Read(sithComm_netMsgTmp.pktData, sithComm_netMsgTmp.netMsg.msg_size)))
         {
-            jk_printf("OpenJKDF2: Save load failed to read msg sized %x\n", sithComm_netMsgTmp.netMsg.msg_size);
+            stdPlatform_Printf("OpenJKDF2: Save load failed to read msg sized %x\n", sithComm_netMsgTmp.netMsg.msg_size);
             goto load_fail;
         }
 
@@ -235,7 +257,7 @@ skip_free_things:
         
         if (!sithComm_InvokeMsgByIdx(&sithComm_netMsgTmp))
         {
-            jk_printf("OpenJKDF2: Save load failed to invoke msg %u\n", sithComm_netMsgTmp.netMsg.cogMsgId);
+            stdPlatform_Printf("OpenJKDF2: Save load failed to invoke msg %u\n", sithComm_netMsgTmp.netMsg.cogMsgId);
 #ifndef SDL2_RENDER
             // Linux fails on SyncSound only
             goto load_fail;
@@ -263,12 +285,10 @@ skip_free_things:
 
     stdConffile_Close();
     _memcpy(&sithGamesave_headerTmp, &header, sizeof(sithGamesave_headerTmp));
-    _strncpy(sithGamesave_autosave_fname, stdFnames_FindMedName(fpath), 0x7Fu);
-    sithGamesave_autosave_fname[127] = 0;
+    stdString_SafeStrCopy(sithGamesave_autosave_fname, stdFnames_FindMedName(fpath), 128);
     if ( sithGamesave_dword_835914 )
     {
-        _strncpy(sithGamesave_saveName, stdFnames_FindMedName(fpath), 0x7Fu);
-        sithGamesave_saveName[127] = 0;
+        stdString_SafeStrCopy(sithGamesave_saveName, stdFnames_FindMedName(fpath), 128);
         _wcsncpy(sithGamesave_wsaveName, sithGamesave_headerTmp.saveName, 0xFFu);
         sithGamesave_wsaveName[255] = 0;
     }
@@ -287,9 +307,9 @@ load_fail:
 // MOTS altered
 int sithGamesave_SerializeAllThings(int mpFlags)
 {
-    unsigned int v15; // ebx
+    uint32_t v15; // ebx
     int v16; // ebp
-    unsigned int v17; // ebx
+    uint32_t v17; // ebx
     int v18; // ebp
     int v19; // ebx
     sithItemDescriptor *v20; // esi
@@ -323,7 +343,7 @@ int sithGamesave_SerializeAllThings(int mpFlags)
         }
     }
 
-    for (uint32_t i = 0; i < 256; i++) // TODO define this maximum
+    for (uint32_t i = 0; i < SITHAI_MAX_ACTORS; i++) // TODO define this maximum
     {
         if ( sithAI_actors[i].pAIClass ) {
             sithDSS_SendAIStatus(&sithAI_actors[i], 0, mpFlags);
@@ -375,9 +395,8 @@ int sithGamesave_SerializeAllThings(int mpFlags)
 int sithGamesave_Write(char *saveFname, int a2, int a3, wchar_t *saveName)
 {
     wchar_t *v5; // esi
-    float *v7; // eax
+    flex32_t *v7; // eax
     sithItemInfo *v8; // ecx
-    float v9; // edx
     char tmp_playerName[32]; // [esp+Ch] [ebp-2A0h] BYREF
     char PathName[128]; // [esp+2Ch] [ebp-280h] BYREF
     wchar_t v13[256]; // [esp+ACh] [ebp-200h] BYREF
@@ -413,7 +432,7 @@ int sithGamesave_Write(char *saveFname, int a2, int a3, wchar_t *saveName)
         LEC_PATH_SEPARATOR_CHR, tmp_playerName, LEC_PATH_SEPARATOR_CHR,
         saveFname
     );
-    if ( a2 || !stdConffile_OpenRead(PathName) )
+    if ( a2 || !stdConffile_OpenReadBypass(PathName) )
     {
         _memset(&sithGamesave_headerTmp, 0, sizeof(sithGamesave_headerTmp));
         sithGamesave_headerTmp.version = COMPAT_SAVE_VERSION;
@@ -429,9 +448,8 @@ int sithGamesave_Write(char *saveFname, int a2, int a3, wchar_t *saveName)
         v8 = sithPlayer_pLocalPlayer->iteminfo;
         do
         {
-            v9 = v8->ammoAmt;
+            *v7++ = v8->ammoAmt;
             ++v8;
-            *v7++ = v9;
         }
         while ( (intptr_t)v7 < (intptr_t)sithGamesave_headerTmp.saveName );
         sithGamesave_currentState = SITH_GS_SAVE;
@@ -475,7 +493,7 @@ int sithGamesave_Flush()
         sithGamesave_currentState = SITH_GS_NONE;
         return 1;
     }
-    if ( (sithPlayer_pLocalPlayerThing->thingflags & SITH_TF_DEAD) == 0 && stdConffile_OpenWrite(sithGamesave_fpath) )
+    if ( (sithPlayer_pLocalPlayerThing->thingflags & SITH_TF_DEAD) == 0 && stdConffile_OpenWriteBypass(sithGamesave_fpath) )
     {
         int multiplayerFlagsSave = sithComm_multiplayerFlags;
         sithComm_multiplayerFlags = 4;
@@ -483,7 +501,7 @@ int sithGamesave_Flush()
         if ( sithGamesave_funcWrite )
             sithGamesave_funcWrite();
         stdConffile_Write((const char*)sithWorld_pCurrentWorld->map_jkl_fname, 32);
-        stdConffile_Write((const char*)&sithTime_curMs, sizeof(sithTime_curMs));
+        stdConffile_Write((const char*)&sithTime_curMs, sizeof(uint32_t));
         
         // Added: split this apart, g_sithMode is a struct...
         stdConffile_Write((const char*)&g_sithMode, sizeof(int32_t));

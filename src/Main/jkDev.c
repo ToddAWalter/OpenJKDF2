@@ -4,24 +4,27 @@
 #include "General/stdBitmap.h"
 #include "General/stdFont.h"
 #include "General/stdString.h"
-#include "Win95/stdDisplay.h"
+#include "General/stdFnames.h"
 #include "Devices/sithConsole.h"
+#include "Win95/stdDisplay.h"
 #include "Win95/WinIdk.h"
-#include "World/sithThing.h"
 #include "Gameplay/sithInventory.h"
 #include "Gameplay/jkSaber.h"
+#include "World/sithThing.h"
 #include "World/jkPlayer.h"
 #include "World/sithActor.h"
 #include "Main/sithCommand.h"
-#include "Dss/sithMulti.h"
 #include "Main/Main.h"
 #include "Main/jkMain.h"
 #include "Main/jkStrings.h"
+#include "Main/jkQuakeConsole.h"
 #include "stdPlatform.h"
 #include "wprintf.h"
+#include "Dss/sithMulti.h"
+#include "Dss/sithGamesave.h"
 #include "Dss/jkDSS.h"
 #include "../jk.h"
-#include "Main/jkQuakeConsole.h"
+
 
 void jkDev_DrawEntriesGPU();
 void jkDev_BlitLogToScreenGPU();
@@ -30,7 +33,9 @@ void jkDev_RenderQuakeConsole();
 // MOTS altered
 void jkDev_Startup()
 {
-#ifndef PLATFORM_POSIX
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+    
+#if !defined(SDL2_RENDER) && defined(WIN32)
     if ( Main_bDevMode && Main_bWindowGUI)
     {
         jkDev_hDlg = jk_CreateDialogParamA(stdGdi_GetHInstance(), (LPCSTR)0x70, 0, jkDev_DialogFunc, 0);
@@ -101,6 +106,8 @@ void jkDev_Startup()
 
 void jkDev_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     if ( jkDev_cheatHashtable )
     {
         stdHashTable_Free(jkDev_cheatHashtable);
@@ -113,16 +120,17 @@ void jkDev_Shutdown()
 
 int jkDev_Open()
 {
-    stdVBuffer **v1; // edx
-    stdBitmap *v3; // edx
     stdVBufferTexFmt a1; // [esp+0h] [ebp-4Ch] BYREF
 
     if ( jkDev_bOpened )
         return 0;
 
-    v1 = jkHud_pMsgFontSft->bitmap->mipSurfaces;
+    // Added: Prevent crashes
+    if ( Main_bNoHUD )
+        return 1;
+
     jkDev_log_55A4A4 = 0;
-    jkDev_BMFontHeight = (*v1)->format.height;
+    jkDev_BMFontHeight = stdFont_GetHeight(jkHud_pMsgFontSft);
 
     _memcpy(&a1, &stdDisplay_pCurVideoMode->format, sizeof(a1));
     a1.height = 5 * jkDev_BMFontHeight;
@@ -131,8 +139,7 @@ int jkDev_Open()
 #endif
 
     jkDev_vbuf = stdDisplay_VBufferNew(&a1, 1, 0, 0);
-    v3 = jkHud_pMsgFontSft->bitmap;
-    jkDev_ColorKey = v3->colorkey;
+    jkDev_ColorKey = jkHud_pMsgFontSft->pBitmap->colorkey;
 
     if ( jkDev_vbuf )
     {
@@ -161,7 +168,6 @@ void jkDev_Close()
 void jkDev_DrawLog()
 {
     stdVBuffer *v0; // ecx
-    int v1; // ebp
     signed int v2; // edi
     jkDevLogEnt* v4; // esi
     int v5; // edx
@@ -176,9 +182,12 @@ void jkDev_DrawLog()
     int v14; // eax
     rdRect a4; // [esp+10h] [ebp-10h] BYREF
 
+    // Added: Prevent crashes
+    if ( Main_bNoHUD )
+        return;
+
     jkDev_UpdateEntries();
     v0 = jkDev_vbuf;
-    v1 = 0;
     jkDev_DrawEntries();
 
     if ( v0 )
@@ -224,6 +233,10 @@ void jkDev_BlitLogToScreen()
     int v5; // ecx
     int v6; // eax
     rdRect v7; // [esp+0h] [ebp-10h] BYREF
+
+    // Added: Prevent crashes
+    if ( Main_bNoHUD )
+        return;
 
 #ifdef SDL2_RENDER
     jkDev_BlitLogToScreenGPU();
@@ -276,11 +289,15 @@ void jkDev_BlitLogToScreenGPU()
     int v6; // eax
     rdRect v7; // [esp+0h] [ebp-10h] BYREF
 
+    // Added: Prevent crashes
+    if ( Main_bNoHUD )
+        return;
+
     if (!jkDev_vbuf) return;
 
     v7.x = 0;
     v7.y = 0;
-    v7.height = (int)((float)jkDev_BMFontHeight * jkPlayer_hudScale);
+    v7.height = (int)((flex_t)jkDev_BMFontHeight * jkPlayer_hudScale);
     v1 = 4;
     v2 = 0;
     v3 = &jkDev_aEntries[0];
@@ -302,11 +319,37 @@ void jkDev_BlitLogToScreenGPU()
         }
         if ( v3->bDrawEntry > 0 )
             --v3->bDrawEntry;
-        //v1 += (int)((float)jkDev_BMFontHeight * jkPlayer_hudScale);
+        //v1 += (int)((flex_t)jkDev_BMFontHeight * jkPlayer_hudScale);
         v1 += stdFont_DrawMultilineCenteredHeight(jkHud_pMsgFontSft, 0, v1, stdDisplay_pCurVideoMode->format.width, v3->text, 1, jkPlayer_hudScale);
         ++v3;
         ++v2;
-        v7.y += (int)((float)jkDev_BMFontHeight * jkPlayer_hudScale);
+        v7.y += (int)((flex_t)jkDev_BMFontHeight * jkPlayer_hudScale);
+    }
+    jkDev_dword_55A9D0 = (jkDev_dword_55A9D0 + 1) % 2;
+}
+
+// For DSi
+void jkDev_PrintfLog()
+{
+    int v1; // ebx
+    int v2; // ebp
+    jkDevLogEnt* v3; // edi
+    char tmp[256];
+    
+    v2 = 0;
+    v3 = &jkDev_aEntries[0];
+    for (int i = 0; i < 5; i++)
+    {
+        if ( v2 < jkDev_log_55A4A4 /*&& v3->bDrawEntry*/ )
+        {
+            stdString_WcharToChar(tmp, v3->text, 255);
+            tmp[255] = 0;
+            stdPlatform_Printf("%s\n", tmp);
+        }
+        //if ( v3->bDrawEntry > 0 )
+        //    --v3->bDrawEntry;
+        ++v3;
+        ++v2;
     }
     jkDev_dword_55A9D0 = (jkDev_dword_55A9D0 + 1) % 2;
 }
@@ -346,7 +389,6 @@ LABEL_7:
     ++jkDev_log_55A4A4;
     jkDev_aEntries[v6].bDrawEntry = 2;
     jkDev_aEntries[v6].field_10C = 2;
-#ifdef QOL_IMPROVEMENTS
     char tmp[256];
     char tmp2[256+2];
     stdString_WcharToChar(tmp, str, 255);
@@ -354,6 +396,7 @@ LABEL_7:
     printf("\r                                            \r");
     stdString_snprintf(tmp2, sizeof(tmp2), "%s%c", tmp, _strlen(tmp) && tmp[_strlen(tmp)-1] == '\n' ? ' ' : '\n');
     printf("%s", tmp2);
+#ifdef QUAKE_CONSOLE
     jkQuakeConsole_PrintLine(tmp2);
 #endif
     return v5;
@@ -368,7 +411,7 @@ int jkDev_DebugLog(const char *lParam)
     stdString_CharToWchar(a1, lParam, 127);
     a1[127] = 0;
     int ret = jkDev_PrintUniString(a1);
-#ifdef WIN32
+#if defined(WIN32) && !defined(SDL2_RENDER)
     if ( jkDev_hDlg )
     {
         v1 = GetDlgItem(jkDev_hDlg, 1037);
@@ -454,7 +497,7 @@ void jkDev_sub_41FC90(int a1)
         jkDev_aEntries[v1].timeMsExpiration = 0;
 }
 
-int jkDev_RegisterCmd(void *pfCheatFunc, const char *pCryptCheatStr, const char *pCheatFlavortext, int extra)
+int jkDev_RegisterCmd(DebugConsoleCmd_t pfCheatFunc, const char *pCryptCheatStr, const char *pCheatFlavortext, int extra)
 {
     if ( jkDev_numCheats == JKDEV_NUM_CHEATS )
         return 0;
@@ -563,7 +606,7 @@ int jkDev_Custom_CmdJumpNextCheckpoint(stdDebugConsoleCmd* pCmd, const char* pAr
     if (sithNet_isMulti)
         return 1;
 
-    jkPlayer_dword_525470 = 1;
+    jkPlayer_bLoadingSomething = 1;
     stdString_snprintf(tmp, 128, "%s%s", "_JKAUTO_", sithWorld_pCurrentWorld->map_jkl_fname);
     stdFnames_ChangeExt(tmp, "jks");
     return sithGamesave_Load(tmp, 1, 0);
@@ -592,9 +635,9 @@ int jkDev_CmdDebugFlags2(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 
 int jkDev_CmdWarp(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
-    float v4; // [esp+4h] [ebp-8h] BYREF
-    float v5; // [esp+8h] [ebp-4h] BYREF
-    float v6;
+    flex32_t v4; // [esp+4h] [ebp-8h] BYREF
+    flex32_t v5; // [esp+8h] [ebp-4h] BYREF
+    flex32_t v6;
 
     if ( !sithNet_isMulti )
     {
@@ -774,7 +817,7 @@ int jkDev_CmdLightMaster(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     {
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_JEDI_RANK, 2.0);
         jkPlayer_SetRank(2);
-        sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_FORCEMANA, (float)(50 * jkPlayer_GetJediRank()));
+        sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_FORCEMANA, (flex_t)(50 * jkPlayer_GetJediRank()));
         sithInventory_SetAvailable(sithPlayer_pLocalPlayerThing, SITHBIN_F_JUMP, 1);
         sithInventory_SetAvailable(sithPlayer_pLocalPlayerThing, SITHBIN_F_SPEED, 1);
         sithInventory_SetAvailable(sithPlayer_pLocalPlayerThing, SITHBIN_F_SEEING, 1);
@@ -811,7 +854,7 @@ int jkDev_CmdDarkMaster(stdDebugConsoleCmd *pCmd, const char *pArgStr)
     {
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_JEDI_RANK, 2.0);
         jkPlayer_SetRank(2);
-        sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_FORCEMANA, (float)(50 * jkPlayer_GetJediRank()));
+        sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_FORCEMANA, (flex_t)(50 * jkPlayer_GetJediRank()));
         sithInventory_SetAvailable(sithPlayer_pLocalPlayerThing, SITHBIN_F_JUMP, 1);
         sithInventory_SetAvailable(sithPlayer_pLocalPlayerThing, SITHBIN_F_SPEED, 1);
         sithInventory_SetAvailable(sithPlayer_pLocalPlayerThing, SITHBIN_F_SEEING, 1);
@@ -938,7 +981,7 @@ int jkDev_CmdLevelUp(stdDebugConsoleCmd *pCmd, const char *pArgStr)
             jkDev_amt = 1.0;
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_JEDI_RANK, jkDev_amt + jkDev_amt);
         jkPlayer_SetRank((__int64)(jkDev_amt + jkDev_amt));
-        sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_FORCEMANA, (float)(50 * jkPlayer_GetJediRank()));
+        sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_FORCEMANA, (flex_t)(50 * jkPlayer_GetJediRank()));
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_F_JUMP, jkDev_amt);
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_F_SPEED, jkDev_amt);
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_F_SEEING, jkDev_amt);
@@ -957,7 +1000,7 @@ int jkDev_CmdLevelUp(stdDebugConsoleCmd *pCmd, const char *pArgStr)
         sithInventory_SetBinAmount(sithPlayer_pLocalPlayerThing, SITHBIN_F_DEADLYSIGHT, jkDev_amt);
 
         if (!Main_bMotsCompat) {
-            float v9 = 0.0;
+            flex_t v9 = 0.0;
             for (int i = SITHBIN_F_HEALING; i <= SITHBIN_F_ABSORB; ++i )
             {
                 if ( sithInventory_GetCarries(sithPlayer_pLocalPlayerThing, i) )
@@ -990,7 +1033,7 @@ int jkDev_CmdAllMap(stdDebugConsoleCmd *pCmd, const char *pArgStr)
 {
     if ( !sithNet_isMulti )
     {
-        g_mapModeFlags ^= 0x42u;
+        g_mapModeFlags ^= (MAPMODE_40 | MAPMODE_02);
         sithConsole_PrintUniStr(jkStrings_GetUniStringWithFallback("GAME_ALLMAP"));
     }
     return 1;
@@ -1079,6 +1122,10 @@ void jkDev_DrawEntries()
     jkDevLogEnt* v3; // esi
     rdRect a4; // [esp+8h] [ebp-10h] BYREF
 
+#ifdef TARGET_TWL
+    return;
+#endif
+
     // Added: GPU rendered text
 #ifdef SDL2_RENDER
     jkDev_DrawEntriesGPU();
@@ -1137,14 +1184,14 @@ void jkDev_DrawEntriesGPU()
                 {
                     //if ( v3->bDrawEntry )
                     {
-                        a4.height = (int)((float)jkDev_BMFontHeight * jkPlayer_hudScale);
+                        a4.height = (int)((flex_t)jkDev_BMFontHeight * jkPlayer_hudScale);
                         a4.width = v3->drawWidth;
                         a4.x = 0;
                         a4.y = v1;
                         stdDisplay_VBufferFill(jkDev_vbuf, jkDev_ColorKey, &a4); // jkDev_vbuf->format.width
                         v3->drawWidth = stdFont_Draw1Width(jkHud_pMsgFontSft, 0, v1, Video_menuBuffer.format.width, v3->text, 0, jkPlayer_hudScale);
                     }
-                    v1 += (int)((float)jkDev_BMFontHeight * jkPlayer_hudScale);
+                    v1 += (int)((flex_t)jkDev_BMFontHeight * jkPlayer_hudScale);
                     ++v0;
                     ++v3;
                 }

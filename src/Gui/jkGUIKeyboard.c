@@ -3,6 +3,7 @@
 #include "Devices/sithControl.h"
 #include "Platform/stdControl.h"
 #include "General/Darray.h"
+#include "General/stdString.h"
 #include "Gui/jkGUI.h"
 #include "Gui/jkGUIDialog.h"
 #include "Gui/jkGUIRend.h"
@@ -14,8 +15,8 @@
 #include "jk.h"
 #include "types_enums.h"
 
-int jkGuiKeyboard_listbox_paddings[2] = {170, 0};
-int jkGuiKeyboard_listbox_images[2] = {JKGUI_BM_UP_15, JKGUI_BM_DOWN_15};
+int32_t jkGuiKeyboard_listbox_paddings[2] = {170, 0};
+int32_t jkGuiKeyboard_listbox_images[2] = {JKGUI_BM_UP_15, JKGUI_BM_DOWN_15};
 
 static jkGuiElement jkGuiKeyboard_aElements[19] =
 {
@@ -31,7 +32,7 @@ static jkGuiElement jkGuiKeyboard_aElements[19] =
     { ELEMENT_TEXTBUTTON,  107, 2, "GUI_JOYSTICK", 3, { 320, 120, 140, 40 }, 1, 0, "GUI_JOYSTICK_HINT", NULL, NULL, NULL, {0}, 0},
     { ELEMENT_TEXTBUTTON,  108, 2, "GUI_CONTROLOPTIONS", 3, { 460, 120, 140, 40 }, 1, 0, "GUI_CONTROLOPTIONS_HINT", NULL, NULL, NULL, {0}, 0},
     { ELEMENT_TEXT,        0, 2, (const char*)jkGuiKeyboard_wstr_555E18, 3, { 50, 220, 320, 80 }, 1, 0, NULL, NULL, NULL, NULL, {0}, 0},
-    { ELEMENT_LISTBOX,     0, 0, NULL, 0, { 20, 170, 370, 216 }, 1, 0, "GUI_CONTROLSLIST_HINT", NULL, &jkGuiKeyboard_ControlListClicked, &jkGuiKeyboard_listbox_images, {0}, 0},
+    { ELEMENT_LISTBOX,     0, 0, NULL, 0, { 20, 170, 370, 216 }, 1, 0, "GUI_CONTROLSLIST_HINT", NULL, &jkGuiKeyboard_ControlListClicked, jkGuiKeyboard_listbox_images, {0}, 0},
     { ELEMENT_TEXTBUTTON,  0, 2, "GUI_ADD_CONTROL", 3, { 420, 210, 210, 40 }, 1, 0, "GUI_ADD_CONTROL_HINT", NULL, &jkGuiKeyboard_AddControlClicked, NULL, {0}, 0},
     { ELEMENT_TEXTBUTTON,  0, 2, "GUI_REMOVE_CONTROL", 3, { 420, 250, 210, 40 }, 1, 0, "GUI_REMOVE_CONTROL_HINT", NULL, &jkGuiKeyboard_RemoveControlClicked, NULL, {0}, 0},
     { ELEMENT_TEXTBUTTON,  1, 2, "GUI_OK", 3, { 440, 430, 200, 40 }, 1, 0, NULL, NULL, &jkGuiKeyboard_OkClicked, NULL, {0}, 0},
@@ -43,12 +44,12 @@ static jkGuiElement jkGuiKeyboard_aElements[19] =
 
 static jkGuiMenu jkGuiKeyboard_menu = {jkGuiKeyboard_aElements, 0, 225, 255, 15, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, (intptr_t)jkGuiKeyboard_listbox_paddings, jkGuiKeyboard_sub_4123C0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 
-const char* jkGuiKeyboard_DIKNumToStr(unsigned int idx, char bIsIdxAxis)
+const char* jkGuiKeyboard_DIKNumToStr(uint32_t idx, char bIsIdxAxis)
 {
     BOOL v2; // eax
     const char *pOutStr; // eax
     int v4; // ecx
-    stdControlDikStrToNum *v5; // eax
+    const stdControlDikStrToNum *v5; // eax
 
     if ( (bIsIdxAxis & 1) != 0 )
     {
@@ -96,7 +97,7 @@ int jkGuiKeyboard_sub_411E40(Darray *pDarr)
     return result;
 }
 
-int jkGuiKeyboard_RemoveControlClicked(jkGuiElement *pClickedElement, jkGuiMenu *pMenu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiKeyboard_RemoveControlClicked(jkGuiElement *pClickedElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     jkGuiKeyboardEntry *pEntry; // eax
     int v3; // ecx
@@ -220,14 +221,14 @@ LABEL_14:
         jkGuiRend_SetVisibleAndDraw(&jkGuiKeyboard_aElements[14], &jkGuiKeyboard_menu, v18->dxKeyNum != -1);
 }
 
-int jkGuiKeyboard_EnumBindings(int inputFuncIdx, const char *pInputFuncStr, uint32_t a3, int dxKeyNum, uint32_t a5, int flags, stdControlKeyInfoEntry *pControlEntry, Darray *pDarr)
+int jkGuiKeyboard_EnumBindings(int32_t inputFuncIdx, const char *pInputFuncStr, uint32_t a3, int32_t dxKeyNum, uint32_t a5, int32_t flags, stdControlKeyInfoEntry *pControlEntry, Darray *pDarr)
 {
     void *v8; // edi
     wchar_t *v9; // eax
     BOOL v10; // eax
     const char *v11; // ecx
     int v12; // ecx
-    stdControlDikStrToNum *v13; // eax
+    const stdControlDikStrToNum *v13; // eax
     jkGuiKeyboardEntry *v14; // eax
     const char *v16; // [esp-8h] [ebp-240h]
     wchar_t *v17; // [esp+14h] [ebp-224h]
@@ -239,7 +240,7 @@ int jkGuiKeyboard_EnumBindings(int inputFuncIdx, const char *pInputFuncStr, uint
     if ( v17 && (jkGuiKeyboard_dword_555E10 != 105 || (flags & 1) == 0) )
     {
         if ( (a3 & 2) == 0
-          || ((_strncpy(v18, pInputFuncStr, 0x1Fu), v18[31] = 0, (flags & 1) == 0) ? ((flags & 4) == 0 ? (v16 = "_K") : (v16 = "_R"), strncat(v18, v16, 0x20u)) : strncat(v18, "_A", 0x20u),
+          || ((stdString_SafeStrCopy(v18, pInputFuncStr, 32), (flags & 1) == 0) ? ((flags & 4) == 0 ? (v16 = "_K") : (v16 = "_R"), strncat(v18, v16, 0x20u-1)) : strncat(v18, "_A", 0x20u-1), // Added: made strncat safe (won't null-terminate unless its <sizeof)
               (v8 = jkStrings_GetUniStringWithFallback(v18)) != 0) )
         {
             if ( dxKeyNum == -1 )
@@ -296,7 +297,7 @@ LABEL_25:
     return 1;
 }
 
-int jkGuiKeyboard_AddControlClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiKeyboard_AddControlClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     int v3; // esi
     jkGuiKeyboardEntry *v4; // eax
@@ -456,7 +457,7 @@ LABEL_35:
     }
 }
 
-int jkGuiKeyboard_OkClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiKeyboard_OkClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     if ( jkGuiKeyboard_bOnceIdk )
         return 0;
@@ -464,7 +465,7 @@ int jkGuiKeyboard_OkClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX
     return pElement->hoverId;
 }
 
-int jkGuiKeyboard_CancelClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiKeyboard_CancelClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     jkGuiRend_PlayWav(pMenu->soundClick);
     if ( !jkGuiKeyboard_bOnceIdk )
@@ -477,7 +478,7 @@ int jkGuiKeyboard_CancelClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mo
     return 0;
 }
 
-int jkGuiKeyboard_ControlListClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiKeyboard_ControlListClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     jkGuiKeyboardEntry *v6; // eax
 
@@ -492,7 +493,7 @@ int jkGuiKeyboard_ControlListClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, i
     return 0;
 }
 
-int jkGuiKeyboard_RestoreDefaultsClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiKeyboard_RestoreDefaultsClicked(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     wchar_t *v3; // eax
     wchar_t *v4; // [esp-8h] [ebp-8h]
@@ -504,7 +505,7 @@ int jkGuiKeyboard_RestoreDefaultsClicked(jkGuiElement *pElement, jkGuiMenu *pMen
     v3 = jkStrings_GetUniStringWithFallback("GUI_RESTORE_DEFAULTS");
     if ( jkGuiDialog_YesNoDialog(v3, v4) )
     {
-        sithControl_sub_4D7350();
+        sithControl_KeyboardInputInitDefaults();
         jkHudInv_InputInit();
     }
     jkGuiKeyboard_sub_411F40(&jkGuiKeyboard_aElements[12], &jkGuiKeyboard_darrEntries);
@@ -549,5 +550,5 @@ void jkGuiKeyboard_Startup()
 
 void jkGuiKeyboard_Shutdown()
 {
-    ;
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
 }

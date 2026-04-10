@@ -10,8 +10,9 @@
 #include "Win95/stdComm.h"
 #include "World/jkPlayer.h"
 #include "Main/jkEpisode.h"
+#include "General/stdFnames.h"
 
-#ifdef LINUX
+#ifdef FS_POSIX
 #include "external/fcaseopen/fcaseopen.h"
 #endif
 
@@ -24,6 +25,7 @@ void jkSmack_Startup()
 
 void jkSmack_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
     jkSmack_bInit = 0;
     if ( jkEpisode_mLoad.paEntries )
     {
@@ -54,10 +56,10 @@ int jkSmack_SmackPlay(const char *fname)
         jkSmack_nextGuiState = JK_GAMEMODE_TITLE;
         return 1;
     }
-    _sprintf(std_genBuffer, "video%c%s", '\\', fname);
+    _sprintf(std_genBuffer, "video%c%s", LEC_PATH_SEPARATOR_CHR, fname);
 
-#ifdef LINUX
-    char *r = malloc(strlen(std_genBuffer) + 16);
+#ifdef FS_POSIX
+    char *r = (char*)malloc(strlen(std_genBuffer) + 16);
     if (casepath(std_genBuffer, r))
     {
         strcpy(std_genBuffer, r);

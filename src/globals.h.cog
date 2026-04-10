@@ -2,7 +2,7 @@
 #define _OPENJKDF2_GLOBALS_H
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 #include "engine_config.h"
@@ -23,6 +23,14 @@ typedef struct embeddedResource_t
     const char* data;
     size_t data_len;
 } embeddedResource_t;
+
+#ifdef TARGET_TWL
+#define MAYBE_UNUSED __attribute__((unused))
+#else
+#define MAYBE_UNUSED
+#endif
+
+#define NO_REINIT // HACK
 
 // Addrs
 [[[cog
@@ -86,7 +94,7 @@ typedef struct embeddedResource_t
             c_type = s[0]
             c_type_post = "[" + s[1] 
         
-        cog.outl("extern %s %s%s;" % (c_type, name, c_type_post))
+        cog.outl("extern %s %s%s MAYBE_UNUSED;" % (c_type, name, c_type_post))
 
 ]]]
 [[[end]]]
@@ -141,16 +149,15 @@ extern void OpenJKDF2_Globals_Reset();
     import os
     from pathlib import Path
 
-    embed_files = glob.glob(str(Path(project_root) / "resource" / "shaders" / "*.glsl"))
-    embed_files += glob.glob(str(Path(project_root) / "resource" / "ssl" / "*.pem"))
-    embed_files += glob.glob(str(Path(project_root) / "resource" / "ui" / "*.uni"))
+    cog.outl("// %s" % embedded_resources)
+    embed_files = embedded_resources.split("+")
     cog.outl("extern const size_t embeddedResource_aFiles_num;")
     cog.outl("extern const embeddedResource_t embeddedResource_aFiles[%d];" % (len(embed_files),))
 ]]]
 [[[end]]]
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif // _OPENJKDF2_GLOBALS_H

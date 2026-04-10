@@ -1,6 +1,6 @@
 app-id: org.openjkdf2.OpenJKDF2
 runtime: org.freedesktop.Platform
-runtime-version: '22.08'
+runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 
 command: openjkdf2
@@ -10,6 +10,7 @@ finish-args:
   - --share=ipc  # needed for X11
   - --share=network # needed for networking (Multiplayer/Valve GameNetworkingSockets)
   - --socket=fallback-x11
+  - --socket=wayland
   - --socket=pulseaudio
 
 modules:

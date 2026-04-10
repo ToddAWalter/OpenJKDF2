@@ -380,8 +380,8 @@ GLuint std3D_loadProgram(const char* fpath_base)
     GLuint out;
     GLint link_ok = GL_FALSE;
     
-    char* tmp_vert = malloc(strlen(fpath_base) + 32);
-    char* tmp_frag = malloc(strlen(fpath_base) + 32);
+    char* tmp_vert = (char*)malloc(strlen(fpath_base) + 32);
+    char* tmp_frag = (char*)malloc(strlen(fpath_base) + 32);
     
     strcpy(tmp_vert, fpath_base);
     strcat(tmp_vert, "_v.glsl");
@@ -594,11 +594,12 @@ int init_resources()
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 256, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, displaypal_data);
 
     // Tiled random
+    // FLEXTODO
     glGenTextures(1, &tiledrand_texture);
     if (tiledrand_data) {
         free(tiledrand_data);
     }
-    tiledrand_data = malloc(3 * 4 * 4 * sizeof(float));
+    tiledrand_data = (rdVector3*)malloc(3 * 4 * 4 * sizeof(float));
     memset(tiledrand_data, 0, 3 * 4 * 4 * sizeof(float));
 
     for (int i = 0; i < 4*4; i++)
@@ -624,11 +625,11 @@ int init_resources()
     glGenVertexArrays( 1, &vao );
     glBindVertexArray( vao ); 
 
-    world_data_all = malloc(STD3D_MAX_VERTICES * sizeof(D3DVERTEX));
-    world_data_elements = malloc(sizeof(GLushort) * 3 * STD3D_MAX_TRIS);
+    world_data_all = (D3DVERTEX*)malloc(STD3D_MAX_VERTICES * sizeof(D3DVERTEX));
+    world_data_elements = (GLushort*)malloc(sizeof(GLushort) * 3 * STD3D_MAX_TRIS);
 
-    menu_data_all = malloc(STD3D_MAX_UI_VERTICES * sizeof(D3DVERTEX));
-    menu_data_elements = malloc(sizeof(GLushort) * 3 * STD3D_MAX_UI_TRIS);
+    menu_data_all = (D3DVERTEX*)malloc(STD3D_MAX_UI_VERTICES * sizeof(D3DVERTEX));
+    menu_data_elements = (GLushort*)malloc(sizeof(GLushort) * 3 * STD3D_MAX_UI_TRIS);
 
     glGenBuffers(1, &world_vbo_all);
     glGenBuffers(1, &world_ibo_triangle);
@@ -673,6 +674,8 @@ void std3D_Shutdown()
 
 void std3D_FreeResources()
 {
+    std3D_PurgeEntireTextureCache();
+
     glDeleteProgram(programDefault);
     glDeleteProgram(programMenu);
     std3D_deleteFramebuffer(&std3D_framebuffers[0]);
@@ -730,6 +733,8 @@ void std3D_FreeResources()
 int std3D_StartScene()
 {
     if (Main_bHeadless) return 1;
+
+    ++std3D_frameCount;
 
     //printf("Begin draw\n");
     if (!has_initted)
@@ -802,8 +807,6 @@ int std3D_StartScene()
         loaded_colormap = sithWorld_pCurrentWorld->colormaps;
     }
 
-    
-    
     if (memcmp(displaypal_data, stdDisplay_masterPalette, 0x300))
     {
         glBindTexture(GL_TEXTURE_2D, displaypal_texture);
@@ -921,7 +924,7 @@ int std3D_RenderListVerticesFinish()
     return 1;
 }
 
-void std3D_DrawMenuSubrect(float x, float y, float w, float h, float dstX, float dstY, float scale)
+void std3D_DrawMenuSubrect(flex_t x, flex_t y, flex_t w, flex_t h, flex_t dstX, flex_t dstY, flex_t scale)
 {
     //double tex_w = (double)Window_xSize;
     //double tex_h = (double)Window_ySize;
@@ -995,7 +998,7 @@ void std3D_DrawMenuSubrect(float x, float y, float w, float h, float dstX, float
     GL_tmpTrisAmt += 2;
 }
 
-void std3D_DrawMenuSubrect2(float x, float y, float w, float h, float dstX, float dstY, float scale)
+void std3D_DrawMenuSubrect2(flex_t x, flex_t y, flex_t w, flex_t h, flex_t dstX, flex_t dstY, flex_t scale)
 {
     //double tex_w = (double)Window_xSize;
     //double tex_h = (double)Window_ySize;
@@ -1070,7 +1073,7 @@ void std3D_DrawMenuSubrect2(float x, float y, float w, float h, float dstX, floa
 }
 
 static rdDDrawSurface* test_idk = NULL;
-void std3D_DrawSimpleTex(std3DSimpleTexStage* pStage, std3DIntermediateFbo* pFbo, GLuint texId, GLuint texId2, GLuint texId3, float param1, float param2, float param3, int gen_mips);
+void std3D_DrawSimpleTex(std3DSimpleTexStage* pStage, std3DIntermediateFbo* pFbo, GLuint texId, GLuint texId2, GLuint texId3, flex_t param1, flex_t param2, flex_t param3, int gen_mips);
 void std3D_DrawMapOverlay();
 void std3D_DrawUIRenderList();
 
@@ -1404,7 +1407,7 @@ void std3D_DrawMenu()
     
     rdTri* tris = GL_tmpTris;
     
-    rdDDrawSurface* last_tex = (void*)-1;
+    rdDDrawSurface* last_tex = (rdDDrawSurface*)(intptr_t)-1;
     int last_tex_idx = 0;
     //GLushort* data_elements = malloc(sizeof(GLushort) * 3 * GL_tmpTrisAmt);
     for (int j = 0; j < GL_tmpTrisAmt; j++)
@@ -1543,7 +1546,7 @@ void std3D_DrawMapOverlay()
     
     rdTri* tris = GL_tmpTris;
     
-    rdDDrawSurface* last_tex = (void*)-1;
+    rdDDrawSurface* last_tex = (rdDDrawSurface*)(intptr_t)-1;
     int last_tex_idx = 0;
     //GLushort* data_elements = malloc(sizeof(GLushort) * 3 * GL_tmpTrisAmt);
     for (int j = 0; j < GL_tmpTrisAmt; j++)
@@ -1565,7 +1568,7 @@ void std3D_DrawMapOverlay()
     glDisableVertexAttribArray(programMenu_attribute_coord3d);
 }
 
-void std3D_DrawUIBitmapRGBA(stdBitmap* pBmp, int mipIdx, float dstX, float dstY, rdRect* srcRect, float scaleX, float scaleY, int bAlphaOverwrite, uint8_t color_r, uint8_t color_g, uint8_t color_b, uint8_t color_a)
+void std3D_DrawUIBitmapRGBA(stdBitmap* pBmp, int mipIdx, flex_t dstX, flex_t dstY, rdRect* srcRect, flex_t scaleX, flex_t scaleY, int bAlphaOverwrite, uint8_t color_r, uint8_t color_g, uint8_t color_b, uint8_t color_a)
 {
     float internalWidth = Video_menuBuffer.format.width;
     float internalHeight = Video_menuBuffer.format.height;
@@ -1701,7 +1704,7 @@ void std3D_DrawUIBitmapRGBA(stdBitmap* pBmp, int mipIdx, float dstX, float dstY,
     GL_tmpUITrisAmt += 2;
 }
 
-void std3D_DrawUIBitmap(stdBitmap* pBmp, int mipIdx, float dstX, float dstY, rdRect* srcRect, float scale, int bAlphaOverwrite)
+void std3D_DrawUIBitmap(stdBitmap* pBmp, int mipIdx, flex_t dstX, flex_t dstY, rdRect* srcRect, flex_t scale, int bAlphaOverwrite)
 {
     std3D_DrawUIBitmapRGBA(pBmp, mipIdx, dstX, dstY, srcRect, scale, scale, bAlphaOverwrite, 0xFF, 0xFF, 0xFF, 0xFF);
 }
@@ -2058,7 +2061,7 @@ void std3D_DrawUIRenderList()
     std3D_ResetUIRenderList();
 }
 
-void std3D_DrawSimpleTex(std3DSimpleTexStage* pStage, std3DIntermediateFbo* pFbo, GLuint texId, GLuint texId2, GLuint texId3, float param1, float param2, float param3, int gen_mips)
+void std3D_DrawSimpleTex(std3DSimpleTexStage* pStage, std3DIntermediateFbo* pFbo, GLuint texId, GLuint texId2, GLuint texId3, flex_t param1, flex_t param2, flex_t param3, int gen_mips)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, pFbo->fbo);
     glDepthFunc(GL_ALWAYS);
@@ -2205,7 +2208,7 @@ void std3D_DrawSimpleTex(std3DSimpleTexStage* pStage, std3DIntermediateFbo* pFbo
     glEnableVertexAttribArray(pStage->attribute_v_color);
     glEnableVertexAttribArray(pStage->attribute_v_uv);
     
-    rdDDrawSurface* last_tex = (void*)-1;
+    rdDDrawSurface* last_tex = (rdDDrawSurface*)(intptr_t)-1;
     int last_tex_idx = 0;
     //GLushort* data_elements = malloc(sizeof(GLushort) * 3 * GL_tmpTrisAmt);
     for (int j = 0; j < GL_tmpTrisAmt; j++)
@@ -2249,7 +2252,7 @@ void std3D_DrawSceneFbo()
 
     float add_luma = (((float)rdroid_curColorEffects.add.x / 255.0f) * 0.2125)
                      + (((float)rdroid_curColorEffects.add.y / 255.0f)* 0.7154)
-                     + (((float)rdroid_curColorEffects.add.z / 255.0f) * 0.0721);
+                     + (((float)rdroid_curColorEffects.add.z / 255.0f) * 0.0721); // FLEXTODO
 
     // HACK: Force blinding shouldn't show the SSAO
     if (add_luma >= 0.7) {
@@ -2398,7 +2401,8 @@ void std3D_DoTex(rdDDrawSurface* tex, rdTri* tri, int tris_left)
     }
     //if (tex->emissive_factor[0] != 0.0 || tex->emissive_factor[1] != 0.0 || tex->emissive_factor[2] != 0.0)
     //    stdPlatform_Printf("%f %f %f\n", tex->emissive_factor[0], tex->emissive_factor[1], tex->emissive_factor[2]);
-    glUniform3f(uniform_emissiveFactor, tex->emissive_factor[0], tex->emissive_factor[1], tex->emissive_factor[2]);
+    float emissive_mult = (jkPlayer_enableBloom ? 1.0 : 5.0);
+    glUniform3f(uniform_emissiveFactor, tex->emissive_factor[0] * emissive_mult, tex->emissive_factor[1] * emissive_mult, tex->emissive_factor[2] * emissive_mult);
     glUniform4f(uniform_albedoFactor, tex->albedo_factor[0], tex->albedo_factor[1], tex->albedo_factor[2], tex->albedo_factor[3]);
     if (tex->displacement_factor) {
         //printf("%f\n", tex->displacement_factor);
@@ -2460,8 +2464,8 @@ void std3D_DrawRenderList()
     // This ends up resulting in the view looking squished vertically at wide/ultrawide aspect ratios.
     // To compensate, we zoom the y axis here.
     // I also went ahead and fixed vertical displays in the same way because it seems to look better.
-    float zoom_yaspect = (width/height);
-    float zoom_xaspect = (height/width);
+    float zoom_yaspect = 1.0;//(width/height);
+    float zoom_xaspect = 1.0;//(height/width);
 
     if (height > width)
     {
@@ -2525,10 +2529,10 @@ void std3D_DrawRenderList()
     {
     
     float d3dmat[16] = {
-       maxX*scaleX*zoom_xaspect,      0,                                          0,      0, // right
-       0,                                       -maxY*scaleY*zoom_yaspect,               0,      0, // up
+       (float)(maxX*scaleX*zoom_xaspect),      0,                                          0,      0, // right
+       0,                                       (float)(-maxY*scaleY*zoom_yaspect),               0,      0, // up
        0,                                       0,                                          1,     0, // forward
-       -(internalWidth/2)*scaleX*zoom_xaspect + shift_add_x,  (internalHeight/2)*scaleY*zoom_yaspect + shift_add_y,     (!rdCamera_pCurCamera || rdCamera_pCurCamera->projectType == rdCameraProjectType_Perspective) ? -1 : 1,      1  // pos
+       (float)(-(internalWidth/2)*scaleX*zoom_xaspect + shift_add_x),  (float)((internalHeight/2)*scaleY*zoom_yaspect + shift_add_y),     (float)((!rdCamera_pCurCamera || rdCamera_pCurCamera->projectType == rdCameraProjectType_Perspective) ? -1 : 1),      1  // pos
     };
     
     glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, d3dmat);
@@ -2883,9 +2887,9 @@ int std3D_AddToTextureCache(stdVBuffer *vbuf, rdDDrawSurface *texture, int is_al
     
     GLuint image_texture;
     glGenTextures(1, &image_texture);
-    uint8_t* image_8bpp = vbuf->sdlSurface->pixels;
-    uint16_t* image_16bpp = vbuf->sdlSurface->pixels;
-    uint8_t* pal = vbuf->palette;
+    uint8_t* image_8bpp = (uint8_t*)vbuf->sdlSurface->pixels;
+    uint16_t* image_16bpp = (uint16_t*)vbuf->sdlSurface->pixels;
+    uint8_t* pal = (uint8_t*)vbuf->palette;
     
     uint32_t width, height;
     width = vbuf->format.width;
@@ -3090,9 +3094,9 @@ int std3D_AddBitmapToTextureCache(stdBitmap *texture, int mipIdx, int is_alpha_t
     
     GLuint image_texture;
     glGenTextures(1, &image_texture);
-    uint8_t* image_8bpp = vbuf->sdlSurface->pixels;
-    uint16_t* image_16bpp = vbuf->sdlSurface->pixels;
-    uint8_t* pal = vbuf->palette;
+    uint8_t* image_8bpp = (uint8_t*)vbuf->sdlSurface->pixels;
+    uint16_t* image_16bpp = (uint16_t*)vbuf->sdlSurface->pixels;
+    uint8_t* pal = (uint8_t*)vbuf->palette;
     
     uint32_t width, height;
     width = vbuf->format.width;
@@ -3357,8 +3361,15 @@ int std3D_AddBitmapToTextureCache(stdBitmap *texture, int mipIdx, int is_alpha_t
     return 1;
 }
 
-void std3D_UpdateFrameCount(rdDDrawSurface *surface)
-{
+void std3D_UpdateFrameCount(rdDDrawSurface *pTexture) {
+    //pTexture->frameNum = std3D_frameCount; // lol LEC bug
+    std3D_RemoveTextureFromCacheList(pTexture);
+    std3D_AddTextureToCacheList(pTexture);
+    pTexture->frameNum = std3D_frameCount;
+}
+void std3D_RemoveTextureFromCacheList(rdDDrawSurface *surface) {
+}
+void std3D_AddTextureToCacheList(rdDDrawSurface *surface) {
 }
 
 // Added helpers
@@ -3444,7 +3455,7 @@ void std3D_Screenshot(const char* pFpath)
 #ifdef TARGET_CAN_JKGM
     if (!std3D_pFb) return;
 
-    uint8_t* data = malloc(std3D_pFb->w * std3D_pFb->h * 3 * sizeof(uint8_t));
+    uint8_t* data = (uint8_t*)malloc(std3D_pFb->w * std3D_pFb->h * 3 * sizeof(uint8_t));
     glBindFramebuffer(GL_FRAMEBUFFER, std3D_pFb->fbo);
     glReadPixels(0, 0, std3D_pFb->w, std3D_pFb->h, GL_RGB, GL_UNSIGNED_BYTE, data);
     jkgm_write_png(pFpath, std3D_pFb->w, std3D_pFb->h, data);
@@ -3570,15 +3581,55 @@ void std3D_PurgeUIEntry(int i, int idx) {
     std3D_loadedUITexturesAmt--;
 }
 
-void std3D_PurgeTextureCache()
+// From https://github.com/smlu/OpenJones3D/blob/main/Libs/std/Win95/std3D.c
+int std3D_PurgeTextureCache(size_t size)
+{
+    size_t purgedBytes = 0;
+    for ( rdDDrawSurface* pCacheTexture = std3D_pFirstTexCache; pCacheTexture && pCacheTexture->frameNum != std3D_frameCount; pCacheTexture = pCacheTexture->pNextCachedTexture )
+    {
+        if ( pCacheTexture->textureSize == size )
+        {
+            //IDirect3DTexture2_Release(pCacheTexture->pD3DCachedTex);
+            std3D_PurgeSurfaceRefs(pCacheTexture);
+            //pCacheTexture->pD3DCachedTex = NULL;
+            std3D_RemoveTextureFromCacheList(pCacheTexture);
+            return 1;
+        }
+    }
+
+    rdDDrawSurface* pNextCachedTexture = NULL;
+    for ( rdDDrawSurface* pCacheTexture = std3D_pFirstTexCache; pCacheTexture && purgedBytes < size; pCacheTexture = pNextCachedTexture )
+    {
+        pNextCachedTexture = pCacheTexture->pNextCachedTexture;
+        if ( pCacheTexture->frameNum != std3D_frameCount )
+        {
+            //if ( pCacheTexture->pD3DCachedTex ) { // Added: Added check for null pointer
+                //IDirect3DTexture2_Release(pCacheTexture->pD3DCachedTex);
+                std3D_PurgeSurfaceRefs(pCacheTexture);
+            //}
+            //pCacheTexture->pD3DCachedTex = NULL;
+            purgedBytes += pCacheTexture->textureSize;
+            std3D_RemoveTextureFromCacheList(pCacheTexture);
+        }
+    }
+
+    return purgedBytes != 0;
+}
+
+void std3D_PurgeEntireTextureCache()
 {
     if (Main_bHeadless) {
         std3D_loadedTexturesAmt = 0;
         return;
     }
 
-    jk_printf("Purging texture cache...\n");
-    for (int i = 0; i < STD3D_MAX_TEXTURES; i++)
+    if (!std3D_loadedTexturesAmt) {
+        jk_printf("Skipping texture cache purge, nothing loaded.\n");
+        return;
+    }
+
+    jk_printf("Purging texture cache... %x\n", std3D_loadedTexturesAmt);
+    for (int i = 0; i < std3D_loadedTexturesAmt; i++)
     {
         std3D_PurgeTextureEntry(i);
     }

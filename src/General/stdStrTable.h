@@ -29,7 +29,9 @@ typedef struct stdStrTable
 int stdStrTable_Load(stdStrTable *strtable, char *fpath);
 void stdStrTable_Free(stdStrTable* pTable);
 wchar_t* stdStrTable_GetUniString(stdStrTable* pTable, const char *key);
-wchar_t* stdStrTable_GetStringWithFallback(stdStrTable* pTable, char *key);
+wchar_t* stdStrTable_GetStringWithFallback(stdStrTable* pTable, const char *key);
+int stdStrTable_ParseLine(stdFile_t fhand, char *buf, int bufLen);
+int stdStrTable_ParseUniLine(stdFile_t fhand, wchar_t *buf);
 
 //static int (__cdecl *stdStrTable_Load)(stdStrTable *strtable, char *fpath) = (void*)stdStrTable_Load_ADDR;
 

@@ -19,8 +19,8 @@
 #include "Devices/sithComm.h"
 
 static int jkGuiMultiplayer_bInitted = 0;
-static int jkGuiMultiplayer_aElements2_aIdk[2] = {0xd, 0xe};
-static int jkGuiMultiplayer_aElements3_aIdk[2] = {0xd, 0xe};
+static int32_t jkGuiMultiplayer_aElements2_aIdk[2] = {0xd, 0xe};
+static int32_t jkGuiMultiplayer_aElements3_aIdk[2] = {0xd, 0xe};
 
 static jkGuiElement jkGuiMultiplayer_aElements[6] = {
     {ELEMENT_TEXT,  0,  6, "GUI_MULTIPLAYER",  3, {0x4, 20, 0x258, 0x28},  1,  0,  0,  0,  0,  0, {0},  0},
@@ -71,15 +71,17 @@ static jkGuiElement jkGuiMultiplayer_aElements4[4] = {
     {ELEMENT_END,  0,  0,  0,  0, {0},  0,  0,  0,  0,  0,  0, {0},  0},
 };
 
-static jkGuiMenu jkGuiMultiplayer_menu = {jkGuiMultiplayer_aElements, 0xFFFFFFFF, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
+static jkGuiMenu jkGuiMultiplayer_menu = {jkGuiMultiplayer_aElements, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 static jkGuiMenu jkGuiMultiplayer_menu2 = {jkGuiMultiplayer_aElements2, 0, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 static jkGuiMenu jkGuiMultiplayer_menu3 = {jkGuiMultiplayer_aElements3, 0, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, jkGuiMultiplayer_sub_4140B0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
-static jkGuiMenu jkGuiMultiplayer_menu4 = {jkGuiMultiplayer_aElements4, 0xFFFFFFFF, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, jkGuiMultiplayer_idk, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
+static jkGuiMenu jkGuiMultiplayer_menu4 = {jkGuiMultiplayer_aElements4, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, jkGuiMultiplayer_idk, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 
 wchar_t jkGuiMultiplayer_ipText[256];
 
 void jkGuiMultiplayer_Startup()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+    
     jkGui_InitMenu(&jkGuiMultiplayer_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
     jkGui_InitMenu(&jkGuiMultiplayer_menu2, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
     jkGui_InitMenu(&jkGuiMultiplayer_menu3, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
@@ -95,6 +97,8 @@ void jkGuiMultiplayer_Startup()
 
 void jkGuiMultiplayer_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+
     jkGuiMultiplayer_bInitted = 0;
 }
 
@@ -102,7 +106,7 @@ void jkGuiMultiplayer_Shutdown()
 int jkGuiMultiplayer_Show()
 {
     int result; // eax
-    unsigned int v1; // esi
+    uint32_t v1; // esi
     sith_dplay_connection *v2; // edi
     int v3; // esi
     HRESULT v4; // eax
@@ -114,7 +118,7 @@ int jkGuiMultiplayer_Show()
     wchar_t *v11; // eax
     int v12; // esi
     int v13; // eax
-    unsigned int v14; // esi
+    uint32_t v14; // esi
     sith_dplay_connection *v15; // edi
     int v16; // esi
     HRESULT v17; // eax
@@ -171,7 +175,7 @@ LABEL_1:
                     if ( v3 > 0 )
                     {
                         // TODO if this is a ptr, fix it
-                        v4 = stdComm_OpenConnection((void*)jkGuiMultiplayer_aElements2[3].selectedTextEntry);
+                        v4 = stdComm_OpenConnection((void*)(intptr_t)jkGuiMultiplayer_aElements2[3].selectedTextEntry);
                         if ( v4 == 0x887700FA )
                         {
                             v24 = jkStrings_GetUniStringWithFallback("GUINET_NOTAVAIL");
@@ -233,7 +237,7 @@ LABEL_1:
                     if ( v16 > 0 )
                     {
                         // TODO if this is a ptr, fix it
-                        v17 = stdComm_OpenConnection((void*)jkGuiMultiplayer_aElements2[3].selectedTextEntry);
+                        v17 = stdComm_OpenConnection((void*)(intptr_t)jkGuiMultiplayer_aElements2[3].selectedTextEntry);
                         if ( v17 == 0x887700FA )
                         {
                             v28 = jkStrings_GetUniStringWithFallback("GUINET_NOTAVAIL");
@@ -340,7 +344,7 @@ LABEL_29:
             goto LABEL_28;
 #ifdef QOL_IMPROVEMENTS
         // HACK: Actually do passwords correctly
-        int check = __wcscmp(jkGuiMultiplayer_aEntries[jkGuiMultiplayer_aElements3[3].selectedTextEntry].wPassword, jkGuiMultiplayer_stru_556168.field_300);
+        int check = __wcscmp((const wchar_t*)jkGuiMultiplayer_aEntries[jkGuiMultiplayer_aElements3[3].selectedTextEntry].wPassword, (const wchar_t*)jkGuiMultiplayer_stru_556168.field_300);
         if (check) {
             v27 = jkStrings_GetUniStringWithFallback("GUINET_WRONGPASSWORD");
             v11 = jkStrings_GetUniStringWithFallback("GUINET_JOINERROR");
@@ -391,6 +395,9 @@ int jkGuiMultiplayer_ShowSynchronizing()
 {
     int v0; // esi
     void *v2; // [esp-4h] [ebp-8h]
+
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
 
     v2 = jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]->palette;
     g_submodeFlags |= 8u;
@@ -599,7 +606,7 @@ void jkGuiMultiplayer_sub_413E50(int idx)
     jkGuiRend_UpdateAndDrawClickable(&jkGuiMultiplayer_aElements3[8], &jkGuiMultiplayer_menu3, 1);
 }
 
-int jkGuiMultiplayer_sub_413E00(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, int bRedraw)
+int jkGuiMultiplayer_sub_413E00(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, int bRedraw)
 {
     int v5; // eax
 
@@ -660,6 +667,10 @@ int jkGuiMultiplayer_Show2()
             if ( stdComm_dword_8321F8 != 2 )
                 return result;
             g_submodeFlags |= 8;
+
+            // Added
+            stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
+
             jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]->palette);
             jkGuiMultiplayer_aElements4[1].wstr = jkStrings_GetUniStringWithFallback("GUINET_WAITHOSTSETTINGS");
             jkGuiMultiplayer_menu4.idkFunc = jkGuiMultiplayer_sub_4142C0;
@@ -737,7 +748,7 @@ void jkGuiMultiplayer_sub_4142C0(jkGuiMenu *pMenu)
 
 int jkGuiMultiplayer_sub_413C80(Darray *pDarray, jkGuiElement *pElement, int a3)
 {
-    unsigned int v3; // esi
+    uint32_t v3; // esi
     sith_dplay_connection *v4; // edi
     int result; // eax
 
@@ -765,6 +776,9 @@ int jkGuiMultiplayer_ShowWaitHostSettings()
 {
     int v0; // esi
     void *v2; // [esp-4h] [ebp-8h]
+
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
 
     v2 = jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]->palette;
     g_submodeFlags |= 8u;

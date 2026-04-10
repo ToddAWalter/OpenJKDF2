@@ -9,18 +9,21 @@ on:
 jobs:
   build:
 
-    runs-on: macos-11
+    runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+      name: Checkout
     - name: Install Packages
       run: |
           set -e
           brew unlink python3
           brew upgrade && brew install --overwrite python3
           brew install cmake make imagemagick
-          pip3 install cogapp generate-iconset
-          brew install mingw-w64 openal-soft sdl2 sdl2_mixer glew libmodplug libpng
-          brew install openssl@1.1 protobuf
+          pip3 install --break-system-packages cogapp generate-iconset
+          brew install openal-soft sdl2 sdl2_mixer glew libmodplug libpng
+          brew install openssl@3 protobuf
     - name: cmake
-      run: export HOMEBREW_PREFIX="/usr/local" && chmod +x ./.github/build_macos.sh && ./.github/build_macos.sh
+      run: export HOMEBREW_PREFIX="/usr/local" && ./.github/build_macos.sh

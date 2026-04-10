@@ -27,7 +27,7 @@ const char *stdControl_aAxisNames[JK_NUM_AXES+1] =
     " "
 };
 
-const stdControlDikStrToNum stdControl_aDikNumToStr[120 + JK_NUM_EXTENDED_KEYS] =
+const stdControlDikStrToNum stdControl_aDikNumToStr[JK_TOTAL_NUM_KEYS] =
 {
   { DIK_ESCAPE,         "DIK_ESCAPE" },
   { DIK_1,              "DIK_1" },
@@ -243,7 +243,9 @@ void stdControl_Reset()
     stdControlJoystickEntry *v0; // eax
 
     stdControl_bReadMouse = 0;
+#ifndef SDL2_RENDER
     stdControl_bHasJoysticks = 0;
+#endif
 
     for (int i = 0; i < JK_NUM_JOYSTICKS; i++) {
         stdControl_aAxisEnabled[i] = 0;
@@ -304,9 +306,9 @@ int stdControl_EnableAxis(unsigned int idx)
 
 // readcontrols
 
-float stdControl_ReadAxis(int axisNum)
+flex_t stdControl_ReadAxis(int axisNum)
 {
-    float result; // st7
+    flex_t result; // st7
     int v2; // ecx
     int v3; // edx
     int v4; // eax
@@ -340,12 +342,19 @@ float stdControl_ReadAxis(int axisNum)
                 return 0.0;
         }
     }
-    result = stdMath_ClipPrecision(stdControl_aJoysticks[v2].fRangeConversion * (double)v9);
+    result = stdMath_ClipPrecision(stdControl_aJoysticks[v2].fRangeConversion * (flex_d_t)v9);
+#ifdef QOL_IMPROVEMENTS
+    if ( result != 0.0 ) {
+        sithControl_msIdle = 0;
+        stdControl_bControlsIdle = 0;
+    }
+#else
     if ( stdControl_bControlsIdle )
     {
         if ( result != 0.0 )
             stdControl_bControlsIdle = 0;
     }
+#endif
 
     // Added: Scale to FPS
     //result = (result * (sithTime_TickHz / 50.0));
@@ -367,16 +376,22 @@ int stdControl_ReadAxisRaw(int axisNum)
     result = stdControl_aAxisPos[axisNum] - stdControl_aJoysticks[axisNum].dwXoffs;
     if ( !result )
         return 0;
+#ifdef QOL_IMPROVEMENTS
+    sithControl_msIdle = 0;
+    stdControl_bControlsIdle = 0;
+
+#else
     if ( stdControl_bControlsIdle )
         stdControl_bControlsIdle = 0;
+#endif
 
     return result;
 }
 
-float stdControl_ReadKeyAsAxis(int keyNum)
+flex_t stdControl_ReadKeyAsAxis(int keyNum)
 {
     uint32_t v1; // eax
-    float result; // st7
+    flex_t result; // st7
 
     if ( !stdControl_bControlsActive || stdControl_bDisableKeyboard )
         return 0.0;
@@ -386,25 +401,37 @@ float stdControl_ReadKeyAsAxis(int keyNum)
         if ( stdControl_aKeyInfo[keyNum] )
         {
             v1 = stdControl_msDelta;
-            goto LABEL_6;
         }
-        return 0.0;
+        else {
+            return 0.0;
+        }
     }
-LABEL_6:
+
     if ( v1 >= stdControl_msDelta )
         v1 = stdControl_msDelta;
-    result = (double)v1 * stdControl_updateKHz;
+#ifdef QOL_IMPROVEMENTS
+    result = 1.5;
+#else
+    result = (flex_d_t)v1 * stdControl_updateKHz;
+#endif
+#ifdef QOL_IMPROVEMENTS
+    if ( result != 0.0 ) {
+        sithControl_msIdle = 0;
+        stdControl_bControlsIdle = 0;
+    }
+#else
     if ( stdControl_bControlsIdle )
     {
         if ( result != 0.0 )
             stdControl_bControlsIdle = 0;
     }
+#endif
     return result;
 }
 
 int stdControl_ReadAxisAsKey(int axisNum)
 {
-    double v1; // st7
+    flex_d_t v1; // st7
 
     v1 = stdControl_ReadAxis(axisNum);
     if ( v1 < 0.0 )
@@ -448,7 +475,7 @@ int stdControl_MessageHandler(HWND hWnd, UINT Msg, WPARAM wParam, HWND lParam, L
     return wParam == 0xF100 || wParam == 0xF140;
 }
 
-void stdControl_SetMouseSensitivity(float xSensitivity, float ySensitivity)
+void stdControl_SetMouseSensitivity(flex_t xSensitivity, flex_t ySensitivity)
 {
     stdControl_mouseXSensitivity = xSensitivity;
     stdControl_mouseYSensitivity = ySensitivity;
@@ -459,7 +486,7 @@ void stdControl_SetMouseSensitivity(float xSensitivity, float ySensitivity)
         stdControl_aJoysticks[AXIS_MOUSE_X].uMinVal = -stdControl_aJoysticks[AXIS_MOUSE_X].uMaxVal;
         stdControl_aJoysticks[AXIS_MOUSE_X].flags |= 1u;
         stdControl_aJoysticks[AXIS_MOUSE_X].dwXoffs = (2 * stdControl_aJoysticks[AXIS_MOUSE_X].uMaxVal + 1) / 2 - stdControl_aJoysticks[AXIS_MOUSE_X].uMaxVal;
-        stdControl_aJoysticks[AXIS_MOUSE_X].fRangeConversion = 1.0 / (double)(stdControl_aJoysticks[AXIS_MOUSE_X].uMaxVal - stdControl_aJoysticks[AXIS_MOUSE_X].dwXoffs);
+        stdControl_aJoysticks[AXIS_MOUSE_X].fRangeConversion = 1.0 / (flex_d_t)(stdControl_aJoysticks[AXIS_MOUSE_X].uMaxVal - stdControl_aJoysticks[AXIS_MOUSE_X].dwXoffs);
     }
     if ( (stdControl_aJoysticks[AXIS_MOUSE_Y].flags & 1) != 0 )
     {
@@ -468,7 +495,7 @@ void stdControl_SetMouseSensitivity(float xSensitivity, float ySensitivity)
         stdControl_aJoysticks[AXIS_MOUSE_Y].uMinVal = -stdControl_aJoysticks[AXIS_MOUSE_Y].uMaxVal;
         stdControl_aJoysticks[AXIS_MOUSE_Y].flags |= 1u;
         stdControl_aJoysticks[AXIS_MOUSE_Y].dwXoffs = (2 * stdControl_aJoysticks[AXIS_MOUSE_Y].uMaxVal + 1) / 2 - stdControl_aJoysticks[AXIS_MOUSE_Y].uMaxVal;
-        stdControl_aJoysticks[AXIS_MOUSE_Y].fRangeConversion = 1.0 / (double)(stdControl_aJoysticks[AXIS_MOUSE_Y].uMaxVal - stdControl_aJoysticks[AXIS_MOUSE_Y].dwXoffs);
+        stdControl_aJoysticks[AXIS_MOUSE_Y].fRangeConversion = 1.0 / (flex_d_t)(stdControl_aJoysticks[AXIS_MOUSE_Y].uMaxVal - stdControl_aJoysticks[AXIS_MOUSE_Y].dwXoffs);
     }
 }
 
@@ -476,9 +503,6 @@ void stdControl_SetMouseSensitivity(float xSensitivity, float ySensitivity)
 
 void stdControl_SetKeydown(int keyNum, int bDown, uint32_t readTime)
 {
-    uint32_t v3; // ecx
-    int v4; // ecx
-
     // Added: bounds check
     if (keyNum >= JK_NUM_KEYS || keyNum < 0)
         return;
@@ -491,33 +515,38 @@ void stdControl_SetKeydown(int keyNum, int bDown, uint32_t readTime)
         stdControl_bControlsIdle = 0;
     }
 
+#ifdef TARGET_TWL
+    // TODO: I think the intent is to allow polling for inputs on a separate thread?
+    // This is a perf optimization to avoid memsetting
+    stdControl_aInput2[keyNum] = 0;
+    stdControl_aInput1[keyNum] = 0;
+#endif
+
     if ( !bDown || stdControl_aKeyInfo[keyNum] )
     {
         if ( !bDown && stdControl_aKeyInfo[keyNum] )
         {
-            v4 = stdControl_aInput1[keyNum];
             stdControl_aKeyInfo[keyNum] = 0;
-            if ( !v4 )
+            if ( !stdControl_aInput1[keyNum] )
                 stdControl_aInput1[keyNum] = stdControl_msDelta;
             stdControl_aInput1[keyNum] += readTime - stdControl_curReadTime;
         }
     }
     else
     {
-        v3 = stdControl_curReadTime - readTime;
         stdControl_aKeyInfo[keyNum] = 1;
-        stdControl_aInput1[keyNum] = v3;
+        stdControl_aInput1[keyNum] = stdControl_curReadTime - readTime;
         ++stdControl_aInput2[keyNum];
     }
 }
 
 // readmouse
 
-void stdControl_InitAxis(int index, int stickMin, int stickMax, float multiplier)
+void stdControl_InitAxis(int index, int stickMin, int stickMax, flex_t multiplier)
 {
     int v4; // eax
     int v5; // esi
-    double v6; // st7
+    flex_d_t v6; // st7
 
     // Added: OOB
     if (index >= JK_NUM_AXES) {
@@ -530,7 +559,7 @@ void stdControl_InitAxis(int index, int stickMin, int stickMax, float multiplier
     stdControl_aJoysticks[v5].uMinVal = stickMin;
     stdControl_aJoysticks[v5].uMaxVal = stickMax;
     stdControl_aJoysticks[v5].dwXoffs = v4;
-    v6 = (double)(stickMax - v4);
+    v6 = (flex_d_t)(stickMax - v4);
     stdControl_aJoysticks[v5].fRangeConversion = 1.0 / v6;
     if ( multiplier == 0.0 )
         stdControl_aJoysticks[index].dwYoffs = 0;

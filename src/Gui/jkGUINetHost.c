@@ -52,7 +52,7 @@ enum jkGuiNetHostAdvancedElement_t
     NETHOST_TICKRATE_TEXTBOX = 3,
 };
 
-static int jkGuiNetHost_aIdk[2] = {0xd, 0xe};
+static int32_t jkGuiNetHost_aIdk[2] = {0xd, 0xe};
 
 // MOTS altered
 static jkGuiElement jkGuiNetHost_aElements[28] =
@@ -92,7 +92,7 @@ static jkGuiElement jkGuiNetHost_aElements[28] =
 
 static jkGuiMenu jkGuiNetHost_menu =
 {
-    &jkGuiNetHost_aElements, 0, 65535, 65535, 15, NULL, NULL, jkGui_stdBitmaps, jkGui_stdFonts, 0, NULL, "thermloop01.wav", "thrmlpu2.wav", NULL, NULL, NULL, 0, NULL, NULL
+    jkGuiNetHost_aElements, 0, 65535, 65535, 15, NULL, NULL, jkGui_stdBitmaps, jkGui_stdFonts, 0, NULL, "thermloop01.wav", "thrmlpu2.wav", NULL, NULL, NULL, 0, NULL, NULL
 };
 
 static jkGuiElement jkGuiNetHost_aSettingsElements[9] =
@@ -112,7 +112,7 @@ static jkGuiElement jkGuiNetHost_aSettingsElements[9] =
 
 static jkGuiMenu jkGuiNetHost_menuSettings =
 {
-    &jkGuiNetHost_aSettingsElements, 0, 65535, 65535, 15, NULL, NULL, jkGui_stdBitmaps, jkGui_stdFonts, 0, NULL, "thermloop01.wav", "thrmlpu2.wav", NULL, NULL, NULL, 0, NULL, NULL
+    jkGuiNetHost_aSettingsElements, 0, 65535, 65535, 15, NULL, NULL, jkGui_stdBitmaps, jkGui_stdFonts, 0, NULL, "thermloop01.wav", "thrmlpu2.wav", NULL, NULL, NULL, 0, NULL, NULL
 };
 
 static int jkGuiNetHost_bInitted;
@@ -265,6 +265,8 @@ void jkGuiNetHost_LoadSettings()
 
 void jkGuiNetHost_Startup()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+    
     jkGui_InitMenu(&jkGuiNetHost_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MULTI]);
     jkGui_InitMenu(&jkGuiNetHost_menuSettings, jkGui_stdBitmaps[JKGUI_BM_BK_SETUP]);
     
@@ -274,6 +276,8 @@ void jkGuiNetHost_Startup()
 
 void jkGuiNetHost_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+
     jkGuiNetHost_SaveSettings();
     jkGuiNetHost_bInitted = 0;
 
@@ -341,7 +345,7 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
     jkGuiNetHost_aElements[NETHOST_PORT_TEXTBOX].wstr = jkGuiNetHost_portText;
     jkGuiNetHost_aElements[NETHOST_PORT_TEXTBOX].selectedTextEntry = 31;
 #endif
-    jk_snwprintf(v26, 0x20u, L"%d", (unsigned int)(__int64)((double)(unsigned int)jkGuiNetHost_timeLimit * 0.000016666667));
+    jk_snwprintf(v26, 0x20u, L"%d", (unsigned int)(__int64)((flex_d_t)(unsigned int)jkGuiNetHost_timeLimit * 0.000016666667));
     jkGuiNetHost_aElements[NETHOST_TIMELIMIT_TEXTBOX].wstr = v26;
     jkGuiNetHost_aElements[NETHOST_TIMELIMIT_TEXTBOX].selectedTextEntry = 4;
     __snprintf(v29, 32, "RANK_%d_L", jkGuiNetHost_maxRank); // sprintf -> snprintf
@@ -380,7 +384,7 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
                 *i = '-';
             
             stdString_SafeStrCopy(pMultiEntry->episodeGobName, jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX].unistr[jkGuiNetHost_aElements[NETHOST_EPISODE_LISTBOX].selectedTextEntry].c_str, 0x20);
-            stdString_SafeStrCopy(pMultiEntry->mapJklFname, jkGuiNetHost_aElements[NETHOST_LEVEL_LISTBOX].unistr[jkGuiNetHost_aElements[NETHOST_LEVEL_LISTBOX].selectedTextEntry].c_str, 0x80);
+            stdString_SafeStrCopy(pMultiEntry->mapJklFname, jkGuiNetHost_aElements[NETHOST_LEVEL_LISTBOX].unistr[jkGuiNetHost_aElements[NETHOST_LEVEL_LISTBOX].selectedTextEntry].c_str + sizeof(int), 0x80); // Added: +sizeof(int)
             
             v10 = wstr_to_int_clamped(v25, 1, 32);
 
@@ -397,7 +401,7 @@ int jkGuiNetHost_Show(jkMultiEntry3 *pMultiEntry)
             jkGuiNetHost_maxPlayers = v10;
             pMultiEntry->maxRank = jkGuiNetHost_maxRank;
             v23 = wstr_to_int_clamped(v26, 1, 100);
-            v11 = (__int64)((double)v23 * 60000.0);
+            v11 = (__int64)((flex_d_t)v23 * 60000.0);
             pMultiEntry->timeLimit = v11;
             jkGuiNetHost_timeLimit = v11;
             if ( jkGuiNetHost_aElements[NETHOST_TIMELIMIT_CHECKBOX].selectedTextEntry )
@@ -517,7 +521,7 @@ int jkGuiNetHost_sub_4118C0(jkMultiEntry3 *pEntry)
 }
 
 // MOTS altered
-int jkGuiNetHost_sub_4119D0(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, int redraw)
+int jkGuiNetHost_sub_4119D0(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, int redraw)
 {
     if ( mouseX != -1 || mouseY != -1 )
         jkGuiRend_ClickSound(pElement, pMenu, mouseX, mouseY, redraw);
@@ -533,7 +537,7 @@ int jkGuiNetHost_sub_4119D0(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX
             jkRes_episodeGobName,
             jkGui_episodeLoad.type,
             jkGui_episodeLoad.numSeq,
-            jkGui_episodeLoad.field_8,
+            jkGui_episodeLoad.currentEpisodeEntryIdx,
             jkGui_episodeLoad.paEntries);
     }
     else
@@ -570,7 +574,7 @@ int jkGuiNetHost_sub_4119D0(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX
     return 0;
 }
 
-int jkGuiNetHost_sub_411AE0(jkGuiElement *pElement, jkGuiMenu *pMenu, int mouseX, int mouseY, int redraw)
+int jkGuiNetHost_sub_411AE0(jkGuiElement *pElement, jkGuiMenu *pMenu, int32_t mouseX, int32_t mouseY, int redraw)
 {
     wchar_t *v7; // eax
     int v9; // [esp-8h] [ebp-28h]

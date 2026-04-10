@@ -45,6 +45,10 @@ void sithPlayer_Startup(int idx)
     }
 }
 
+void sithPlayer_Open()
+{
+}
+
 void sithPlayer_Close()
 {
     if ( sithPlayer_pLocalPlayer )
@@ -73,7 +77,7 @@ void sithPlayer_NewEntry(sithWorld *world)
         sithPlayerInfo* playerInfo = &jkPlayer_playerInfos[0];
         for (v5 = v2 + 1; v5 >= 0; v5--)
         {
-            if ( v1->type == SITH_THING_PLAYER && v3 < 0x20 )
+            if ( v1->type == SITH_THING_PLAYER && v3 < JKPLAYER_NUM_INFOS )
             {
                 playerInfo->playerThing = v1;
                 v1->thingflags |= SITH_TF_INVULN;
@@ -84,19 +88,39 @@ void sithPlayer_NewEntry(sithWorld *world)
                 playerInfo->pSpawnSector = v1->sector;
                 playerInfo++;
                 ++v3;
+
+
             }
             ++v1;
         }
     }
     jkPlayer_maxPlayers = v3;
-    for (int i = jkPlayer_maxPlayers; i < 32; i++)
+    for (int i = jkPlayer_maxPlayers; i < JKPLAYER_NUM_INFOS; i++)
     {
         jkPlayer_playerInfos[i].playerThing = 0;
         jkPlayer_playerInfos[i].pSpawnSector = 0;
     }
 }
 
-float sithPlayer_GetBinAmt(int idx)
+int sithPlayer_GetBinItemActive(int binIdx)
+{
+    return (jkPlayer_playerInfos[playerThingIdx].iteminfo[binIdx].state & 4) >> 2;
+}
+
+int sithPlayer_GetBinItemAvailable(int binIdx)
+{
+    return (jkPlayer_playerInfos[playerThingIdx].iteminfo[binIdx].state & 8) >> 3;
+}
+
+void sithPlayer_SetBinItemActive(int binIdx, int active)
+{
+    if ( active )
+        jkPlayer_playerInfos[playerThingIdx].iteminfo[binIdx].state |= 4;
+    else
+        jkPlayer_playerInfos[playerThingIdx].iteminfo[binIdx].state &= ~4;
+}
+
+flex_t sithPlayer_GetBinAmt(int idx)
 {
     //if (idx)
     //    jk_printf("Get %u: %f\n", idx, jkPlayer_playerInfos[playerThingIdx].iteminfo[idx].ammoAmt);
@@ -104,7 +128,7 @@ float sithPlayer_GetBinAmt(int idx)
     return jkPlayer_playerInfos[playerThingIdx].iteminfo[idx].ammoAmt;
 }
 
-void sithPlayer_SetBinAmt(int idx, float amt)
+void sithPlayer_SetBinAmt(int idx, flex_t amt)
 {
     jkPlayer_playerInfos[playerThingIdx].iteminfo[idx].ammoAmt = amt;
 }
@@ -146,7 +170,7 @@ void sithPlayer_idk(int idx)
     sithPlayer_pLocalPlayerThing->thingflags &= ~SITH_TF_INVULN;
 
     // Added: idk why this is needed?
-    sithPlayer_pLocalPlayerThing->thingtype = SITH_THING_PLAYER;
+    //sithPlayer_pLocalPlayerThing->controlType = SITH_CT_10;
 
     _wcsncpy(sithPlayer_pLocalPlayer->player_name, jkPlayer_playerShortName, 0x1Fu);
     sithPlayer_pLocalPlayer->player_name[31] = 0;
@@ -171,14 +195,14 @@ void sithPlayer_ResetPalEffects()
     sithPlayer_pLocalPlayer->palEffectsIdx2 = stdPalEffects_NewRequest(2);
 }
 
-void sithPlayer_Tick(sithPlayerInfo *playerInfo, float a2)
+void sithPlayer_Tick(sithPlayerInfo *playerInfo, flex_t a2)
 {
     int v2; // edi
     sithThing *v3; // esi
     stdPalEffect *pPalEffect; // ebx
-    double v5; // st7
+    flex_d_t v5; // st7
     int v14; // ecx
-    float v20; // [esp+0h] [ebp-4h]
+    flex_t v20; // [esp+0h] [ebp-4h]
 
     v20 = a2 * 0.4;
     v2 = (__int64)(a2 * 256.0 - -0.5);
@@ -242,7 +266,7 @@ void sithPlayer_debug_loadauto(sithThing *player)
 {
     char v1[128]; // [esp+4h] [ebp-80h] BYREF
 
-    if ( (g_submodeFlags & 1) != 0 || (g_debugmodeFlags & 0x100) != 0 )
+    if ( (g_submodeFlags & 1) != 0 || (g_debugmodeFlags & DEBUGFLAG_IN_EDITOR) != 0 )
     {
         sithPlayer_debug_ToNextCheckpoint(player);
     }
@@ -257,11 +281,11 @@ void sithPlayer_debug_loadauto(sithThing *player)
     player->lifeLeftMs = 0;
 }
 
-void sithPlayer_SetScreenTint(float tintR, float tintG, float tintB)
+void sithPlayer_SetScreenTint(flex_t tintR, flex_t tintG, flex_t tintB)
 {
     sithThing *focusThing; // eax
     stdPalEffect *pPalEffects; // ecx
-    double v8; // st7
+    flex_d_t v8; // st7
 
     focusThing = sithWorld_pCurrentWorld->cameraFocus;
     if ( (focusThing->type & 0xA) != 0 ) // ???
@@ -274,7 +298,7 @@ void sithPlayer_SetScreenTint(float tintR, float tintG, float tintB)
     }
 }
 
-void sithPlayer_AddDynamicTint(float fR, float fG, float fB)
+void sithPlayer_AddDynamicTint(flex_t fR, flex_t fG, flex_t fB)
 {
     stdPalEffect *pPalEffects; // ecx
 
@@ -443,7 +467,7 @@ int sithPlayer_sub_4C87C0(int idx, int netId)
     jkPlayer_playerInfos[idx].net_id = netId;
     jkPlayer_playerInfos[idx].playerThing->thingflags &= ~SITH_TF_DISABLED;
 
-    jkPlayer_playerInfos[idx].playerThing->thingtype = SITH_THING_PLAYER; // TODO: WHY IS THIS NEEDED?
+    //jkPlayer_playerInfos[idx].playerThing->controlType = SITH_CT_10; // TODO: WHY IS THIS NEEDED?
 
     return 1;
 }

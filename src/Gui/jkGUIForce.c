@@ -77,13 +77,13 @@ static const char* jkGuiForce_bitmapsMots[19] = {
 #define EIDX_QUIT_BUTTON (EIDX_RESET_BUTTON + 1)
 
 static int jkGuiForce_alignment;
-static float jkGuiForce_flt_556674;
+static flex_t jkGuiForce_flt_556674;
 static int jkGuiForce_numSpendStars;
 static int jkGuiForce_bCanSpendStars;
-static float jkGuiForce_isMulti;
+static flex_t jkGuiForce_isMulti;
 static stdBitmap* jkGuiForce_aBitmaps[19];
 
-static int jkGuiForce_sliderBitmapIndices[2] = {16, 15};
+static int32_t jkGuiForce_sliderBitmapIndices[2] = {16, 15};
 
 static wchar_t jkGuiForce_waTmp[400];
 
@@ -155,7 +155,7 @@ jkGuiElement jkGuiForce_buttonsMots[31] = {
 
 // HACK: Just make an unused slider
 /*30*/  { ELEMENT_SLIDER,      0, 0, .origExtraInt = 200,  
-        100, {150, 418, 340, 40}, 1, 0,  NULL,           0,  0,          &jkGuiForce_sliderBitmapIndices, {0},  0}, 
+        100, {150, 418, 340, 40}, 1, 0,  NULL,           0,  0,          jkGuiForce_sliderBitmapIndices, {0},  0}, 
 };  
 
 
@@ -211,7 +211,7 @@ static jkGuiElement jkGuiForce_buttons[25] = {
           0, {150, 418, 170, 40}, 1, 0, "GUI_LIGHTSIDE", jkGuiForce_DarkLightHoverDraw, 0,  0, {0},  0}, 
 
 /*23*/  { ELEMENT_SLIDER,      0, 0, .origExtraInt = 200,  
-        100, {150, 418, 340, 40}, 1, 0,  NULL,           0,  0,          &jkGuiForce_sliderBitmapIndices, {0},  0}, 
+        100, {150, 418, 340, 40}, 1, 0,  NULL,           0,  0,          jkGuiForce_sliderBitmapIndices, {0},  0}, 
 /*24*/  { ELEMENT_END,         0, 0, NULL,               
           0, {0},                 0, 0,  NULL,           0,  0,                             0, {0},  0}
 };
@@ -228,8 +228,8 @@ static jkGuiMenu* jkGuiForce_pMenu = &jkGuiForce_menu;
 
 void jkGuiForce_ChoiceRemoveStar(jkGuiMenu *menu, int fpIdx, int amount)
 {
-    sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (float)((int)sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS) + 1));
-    sithPlayer_SetBinAmt(fpIdx, (float)(amount - 1));
+    sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (flex_t)((int)sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS) + 1)); // FLEXTODO
+    sithPlayer_SetBinAmt(fpIdx, (flex_t)(amount - 1)); // FLEXTODO
     if ( fpIdx >= SITHBIN_F_THROW && fpIdx <= SITHBIN_F_DESTRUCTION )
     {
         jkGuiRend_PlayWav("ForcePersuas01.wav");
@@ -251,9 +251,9 @@ void jkGuiForce_ChoiceRemoveStar(jkGuiMenu *menu, int fpIdx, int amount)
 
 void jkGuiForce_ChoiceRemoveStars(jkGuiMenu *menu)
 {
-    if ( jkGuiForce_alignment && (double)(unsigned int)stdPlatform_GetTimeMsec() > jkGuiForce_flt_556674 )
+    if ( jkGuiForce_alignment && (flex_d_t)(unsigned int)stdPlatform_GetTimeMsec() > jkGuiForce_flt_556674 )
     {
-        jkGuiForce_flt_556674 = (double)(unsigned int)stdPlatform_GetTimeMsec() - -1000.0;
+        jkGuiForce_flt_556674 = (flex_d_t)(unsigned int)stdPlatform_GetTimeMsec() - -1000.0;
         int beginIdx = SITHBIN_F_THROW;
         int endIdx = SITHBIN_F_DEADLYSIGHT;
         
@@ -299,7 +299,12 @@ void jkGuiForce_ForceStarsDraw(jkGuiElement *element, jkGuiMenu *menu, stdVBuffe
     int spendStars = (int)sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
     if ( spendStars <= 0 )
     {
-        stdFont_Draw4(vbuf, jkGui_stdFonts[2], element->rect.x, element->rect.y, element->rect.width, element->rect.height, 3, jkStrings_GetUniStringWithFallback("GUI_NO_STARS"), 1);
+#ifndef JKGUI_SMOL_SCREEN
+        const int fontIdx = 2;
+#else
+        const int fontIdx = 12;
+#endif
+        stdFont_Draw4(vbuf, jkGui_stdFonts[fontIdx], element->rect.x, element->rect.y, element->rect.width, element->rect.height, 3, jkStrings_GetUniStringWithFallback("GUI_NO_STARS"), 1);
     }
     else
     {
@@ -346,9 +351,16 @@ void jkGuiForce_ForceStarsDraw(jkGuiElement *element, jkGuiMenu *menu, stdVBuffe
                 stdDisplay_VBufferCopy(vbuf, psVar1->mipSurfaces[3], pFpElement->rect.x, pFpElement->rect.y, &local_10, 1);
             }
 
-            int x_left = pFpElement->rect.x - jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars]->format.width - 19;
-            int x_right =  pFpElement->rect.x + pFpElement->rect.width + 19;
-            int y = pFpElement->rect.y + 3;
+#ifndef JKGUI_SMOL_SCREEN
+            const int shift_left = 19;
+            const int shift_extra = 3;
+#else
+            const int shift_left = 7;
+            const int shift_extra = 1;
+#endif
+            int x_left = pFpElement->rect.x - jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars]->format.width - shift_left;
+            int x_right =  pFpElement->rect.x + pFpElement->rect.width + shift_left;
+            int y = pFpElement->rect.y + shift_extra;
             stdDisplay_VBufferCopy(vbuf, jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars + 5], x_left, y, NULL,1);
 
             if (i == EIDX_MOTS_DEFENSE) 
@@ -370,25 +382,35 @@ void jkGuiForce_ForceStarsDraw(jkGuiElement *element, jkGuiMenu *menu, stdVBuffe
                     numStars += 8; // Dark side
                 }
 
+#ifndef JKGUI_SMOL_SCREEN
+                const int shift_left = 19;
+                const int shift_extra = 3;
+                const int screen_half = 320;
+#else
+                const int shift_left = 7;
+                const int shift_extra = 1;
+                const int screen_half = 128;
+#endif
+
                 // Show the number of force stars next to each button
                 int x;
-                if (jkGuiForce_pElements[i].rect.x >= 320 )
-                    x = jkGuiForce_pElements[i].rect.width + jkGuiForce_pElements[i].rect.x + 19;
+                if (jkGuiForce_pElements[i].rect.x >= screen_half )
+                    x = jkGuiForce_pElements[i].rect.width + jkGuiForce_pElements[i].rect.x + shift_left;
                 else
-                    x = jkGuiForce_pElements[i].rect.x - jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars]->format.width - 19;
+                    x = jkGuiForce_pElements[i].rect.x - jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars]->format.width - shift_left;
 
-                stdDisplay_VBufferCopy(vbuf, jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars], x, jkGuiForce_pElements[i].rect.y + 3, NULL, 1);
+                stdDisplay_VBufferCopy(vbuf, jkGuiForce_aBitmaps[IDX_FOSTARS]->mipSurfaces[numStars], x, jkGuiForce_pElements[i].rect.y + shift_extra, NULL, 1);
             }
         }
     }
 }
 
-int jkGuiForce_ExtraClick(jkGuiElement *element, jkGuiMenu *menu, int a, int b, int c)
+int jkGuiForce_ExtraClick(jkGuiElement *element, jkGuiMenu *menu, int32_t a, int32_t b, int c)
 {
     return 0;
 }
 
-int jkGuiForce_ButtonClick(jkGuiElement *element, jkGuiMenu *menu, int a, int b, int c)
+int jkGuiForce_ButtonClick(jkGuiElement *element, jkGuiMenu *menu, int32_t a, int32_t b, int c)
 {
     if ( !jkGuiForce_bCanSpendStars )
         return 0;
@@ -403,7 +425,7 @@ int jkGuiForce_ButtonClick(jkGuiElement *element, jkGuiMenu *menu, int a, int b,
         int pvVar1;
         if ((element == &jkGuiForce_pElements[EIDX_MOTS_DEFENSE]) && (-1 < jkPlayer_aMotsFpBins[curLevel + 0x44])) {
             int iVar3 = 0;
-            float fVar5;
+            flex_t fVar5;
             int* piVar2 = jkPlayer_aMotsFpBins + jkPlayer_aMotsFpBins[curLevel + 0x44] * 8;
             do {
                 if ((*piVar2 != 0) &&
@@ -416,15 +438,15 @@ int jkGuiForce_ButtonClick(jkGuiElement *element, jkGuiMenu *menu, int a, int b,
             }
         }
         if ((curLevel < 4) && (bIsDefense <= spendStars)) {
-            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(float)(spendStars - bIsDefense));
-            sithPlayer_SetBinAmt(binIdx,(float)(curLevel + 1));
+            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,(flex_t)(spendStars - bIsDefense)); // FLEXTODO
+            sithPlayer_SetBinAmt(binIdx,(flex_t)(curLevel + 1)); // FLEXTODO
         }
         if (jkGuiForce_isMulti == 0) {
             if ((curLevel == element->oldForcePoints) ||
                ((curLevel != 4 && (bIsDefense <= spendStars)))) goto LAB_00418eb2;
             sithPlayer_SetBinAmt
                       (SITHBIN_SPEND_STARS,
-                       (float)((curLevel - element->oldForcePoints) * bIsDefense + spendStars));
+                       (flex_t)((curLevel - element->oldForcePoints) * bIsDefense + spendStars)); // FLEXTODO
             pvVar1 = element->oldForcePoints;
         }
         else {
@@ -438,9 +460,9 @@ int jkGuiForce_ButtonClick(jkGuiElement *element, jkGuiMenu *menu, int a, int b,
                 pvVar1 = 0;
             }
             sithPlayer_SetBinAmt
-                      (SITHBIN_SPEND_STARS,(float)((curLevel - pvVar1) * bIsDefense + spendStars));
+                      (SITHBIN_SPEND_STARS,(flex_t)((curLevel - pvVar1) * bIsDefense + spendStars)); // FLEXTODO
         }
-        sithPlayer_SetBinAmt(binIdx,(float)pvVar1);
+        sithPlayer_SetBinAmt(binIdx,(flex_t)pvVar1); // FLEXTODO
 
 LAB_00418eb2:
         jkGuiForce_UpdateViewForRank();
@@ -450,8 +472,8 @@ LAB_00418eb2:
     else {
         if ( curLevel < 4 && spendStars > 0 )
         {
-            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (float)(spendStars - 1));
-            sithPlayer_SetBinAmt(binIdx, (float)(curLevel + 1));
+            sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (flex_t)(spendStars - 1)); // FLEXTODO
+            sithPlayer_SetBinAmt(binIdx, (flex_t)(curLevel + 1)); // FLEXTODO
             jkGuiForce_pElements[EIDX_ALIGN_SLIDER].selectedTextEntry = 100 - (int)jkPlayer_CalcAlignment(jkGuiForce_isMulti);
             jkGuiRend_Paint(menu);
         }
@@ -460,7 +482,7 @@ LAB_00418eb2:
         {
             if ( curLevel == 4 || !spendStars )
             {
-                sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (float)(spendStars + curLevel));
+                sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (flex_t)(spendStars + curLevel)); // FLEXTODO
                 sithPlayer_SetBinAmt(binIdx, 0.0);
                 jkGuiForce_pElements[EIDX_ALIGN_SLIDER].selectedTextEntry = 100 - (int)jkPlayer_CalcAlignment(jkGuiForce_isMulti);
             }
@@ -474,15 +496,15 @@ LAB_00418eb2:
 }
 
 // MOTS altered
-int jkGuiForce_ResetClick(jkGuiElement *element, jkGuiMenu *menu, int mouseX, int mouseY, int bRedraw)
+int jkGuiForce_ResetClick(jkGuiElement *element, jkGuiMenu *menu, int32_t mouseX, int32_t mouseY, int bRedraw)
 {
     if ( !jkGuiForce_bCanSpendStars )
         return 0;
 
-    sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (double)jkGuiForce_numSpendStars);
+    sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (flex_d_t)jkGuiForce_numSpendStars);
     for (int i = EIDX_START_FP; i < (Main_bMotsCompat ? EIDX_END_FP : EIDX_END_FP_CLICKABLE); i++)
     {
-        float initialForcePoints = (float)jkGuiForce_pElements[i].oldForcePoints;
+        flex_t initialForcePoints = (flex_t)jkGuiForce_pElements[i].oldForcePoints; // FLEXTODO
         sithPlayer_SetBinAmt(jkGuiForce_pElements[i].hoverId, initialForcePoints);
     }
 
@@ -508,13 +530,25 @@ int jkGuiForce_Show(int bCanSpendStars, int isMulti, int a4, wchar_t* a5, int *p
     jkGuiForce_bCanSpendStars = bCanSpendStars;
     jkGuiForce_isMulti = isMulti;
 
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_FORCE]);
+
     jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_FORCE]->palette);
     
     jkGuiForce_pElements[EIDX_NAMETEXT].wstr = jkPlayer_playerShortName;
     jkGuiForce_pElements[EIDX_RESET].bIsVisible = bCanSpendStars;
     jkGuiForce_pElements[EIDX_QUIT].bIsVisible = bEnableIdk != 0;
 
-    float darklight_float = jkPlayer_CalcAlignment(jkGuiForce_isMulti);
+#ifdef QOL_IMPROVEMENTS
+    if (!bEnableIdk && !bCanSpendStars) {
+        jkGuiRend_MenuSetReturnKeyShortcutElement(jkGuiForce_pMenu, &jkGuiForce_pElements[EIDX_OK_BUTTON]);
+        jkGuiRend_MenuSetEscapeKeyShortcutElement(jkGuiForce_pMenu, &jkGuiForce_pElements[EIDX_OK_BUTTON]);
+        jkGuiForce_pMenu->focusedElement = &jkGuiForce_pElements[EIDX_OK_BUTTON];
+        jkGuiForce_pMenu->lastMouseOverClickable = &jkGuiForce_pElements[EIDX_OK_BUTTON];
+    }
+#endif // QOL_IMPROVEMENTS
+
+    flex_t darklight_float = jkPlayer_CalcAlignment(jkGuiForce_isMulti);
     if (Main_bMotsCompat) {
         if (!isMulti || jkPlayer_personality == 1) {
             stdString_snprintf(std_genBuffer, 1024, "RANK_%d_%c",jkPlayer_GetJediRank(),'L');
@@ -533,7 +567,7 @@ int jkGuiForce_Show(int bCanSpendStars, int isMulti, int a4, wchar_t* a5, int *p
         newStars = (int)sithPlayer_GetBinAmt(SITHBIN_NEW_STARS);
         spendStars = (int)sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
         sithPlayer_SetBinAmt(SITHBIN_NEW_STARS, 0.0);
-        sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (float)(newStars + spendStars));
+        sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS, (flex_t)(newStars + spendStars)); // FLEXTODO
     }
 
     if (!Main_bMotsCompat)
@@ -541,7 +575,7 @@ int jkGuiForce_Show(int bCanSpendStars, int isMulti, int a4, wchar_t* a5, int *p
         jkGuiForce_numSpendStars = (int)sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS);
         jkGuiForce_pElements[EIDX_ALIGN_SLIDER].bIsVisible = 1;
         jkGuiForce_pElements[EIDX_ALIGN_SLIDER].enableHover = 1;
-        jkGuiForce_pElements[EIDX_ALIGN_SLIDER].selectedTextEntry = 100 - (uint32_t)darklight_float;
+        jkGuiForce_pElements[EIDX_ALIGN_SLIDER].selectedTextEntry = 100 - (uint32_t)darklight_float; // FLEXTODO
         if (isMulti)
         {
             jkPlayer_SetAccessiblePowers(jkPlayer_GetJediRank());
@@ -674,6 +708,8 @@ void jkGuiForce_Startup()
 
 void jkGuiForce_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+    
     for (int i = 0; i < (Main_bMotsCompat ? 19 : 17); i++)
     {
         if ( jkGuiForce_aBitmaps[i] )
@@ -708,7 +744,7 @@ void jkGuiForce_UpdateViewForRankMots(void)
     bIsMulti = jkPlayer_SyncForcePowers(jediRank_,bIsMulti);
     if (bIsMulti) 
     {
-        sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS) + (float)bIsMulti);
+        sithPlayer_SetBinAmt(SITHBIN_SPEND_STARS,sithPlayer_GetBinAmt(SITHBIN_SPEND_STARS) + (flex_t)bIsMulti); // FLEXTODO
     }
 
     for (int i = EIDX_START_FP; i < EIDX_END_FP; i++)

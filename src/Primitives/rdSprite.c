@@ -12,7 +12,7 @@
 static rdVector3 rdSprite_inVerts[32];
 static rdVector3 rdSprite_tmpVerts[32];
 
-rdSprite* rdSprite_New(int type, char *fpath, char *materialFpath, float width, float height, int geometryMode, int lightMode, int textureMode, float extraLight, rdVector3 *offset)
+rdSprite* rdSprite_New(int type, char *fpath, char *materialFpath, flex_t width, flex_t height, int geometryMode, int lightMode, int textureMode, flex_t extraLight, rdVector3 *offset)
 {
     rdSprite *sprite;
 
@@ -25,7 +25,7 @@ rdSprite* rdSprite_New(int type, char *fpath, char *materialFpath, float width, 
     return sprite;
 }
 
-int rdSprite_NewEntry(rdSprite *sprite, char *spritepath, int type, char *material, float width, float height, rdGeoMode_t geometryMode, rdLightMode_t lightMode, rdTexMode_t textureMode, float extraLight, rdVector3 *offset)
+int rdSprite_NewEntry(rdSprite *sprite, char *spritepath, int type, char *material, flex_t width, flex_t height, rdGeoMode_t geometryMode, rdLightMode_t lightMode, rdTexMode_t textureMode, flex_t extraLight, rdVector3 *offset)
 {
     if (spritepath)
     {
@@ -43,6 +43,7 @@ int rdSprite_NewEntry(rdSprite *sprite, char *spritepath, int type, char *materi
     sprite->face.material = rdMaterial_Load(material, 0, 0);
     if ( sprite->face.material )
     {
+        rdMaterial_EnsureDataForced(sprite->face.material); // Added: TWL
         sprite->face.numVertices = 4;
         sprite->face.vertexPosIdx = (int *)rdroid_pHS->alloc(sizeof(int) * sprite->face.numVertices);
         if ( sprite->face.vertexPosIdx )
@@ -68,13 +69,21 @@ int rdSprite_NewEntry(rdSprite *sprite, char *spritepath, int type, char *materi
                 sprite->vertexUVs = (rdVector2 *)rdroid_pHS->alloc(sizeof(rdVector2) * sprite->face.numVertices);
                 if ( !sprite->vertexUVs )
                     return 0;
-                uint32_t* v24 = (uint32_t*)sprite->face.material->texinfos[0]->texture_ptr->texture_struct[0];
+                
+                // Odd quirk: This requires the material be actually loaded
+                // Added: nullptr fallbacks
+                stdVBuffer* v24 = NULL;
+                if (sprite->face.material->texinfos[0] && sprite->face.material->texinfos[0]->texture_ptr) {
+                    v24 = sprite->face.material->texinfos[0]->texture_ptr->texture_struct[0];
+                }
+                int32_t width = v24 ? v24->format.width : 1; // Added: nullptr check and fallback
+                int32_t height = v24 ? v24->format.height : 1; // Added: nullptr check and fallback
 
                 sprite->vertexUVs[0].x = 0.5;
-                sprite->vertexUVs[0].y = (double)v24[4] - 0.5;
-                sprite->vertexUVs[1].x = (double)v24[3] - 0.5;
-                sprite->vertexUVs[1].y = (double)v24[4] - 0.5;
-                sprite->vertexUVs[2].x = (double)v24[3] - 0.5;
+                sprite->vertexUVs[0].y = (flex_d_t)height - 0.5;
+                sprite->vertexUVs[1].x = (flex_d_t)width - 0.5;
+                sprite->vertexUVs[1].y = (flex_d_t)height - 0.5;
+                sprite->vertexUVs[2].x = (flex_d_t)width - 0.5;
                 sprite->vertexUVs[2].y = 0.5;
                 sprite->vertexUVs[3].x = 0.5;
                 sprite->vertexUVs[3].y = 0.5;
@@ -133,7 +142,7 @@ int rdSprite_Draw(rdThing *thing, rdMatrix34 *mat)
     rdSprite *sprite = thing->sprite3;
     rdMatrix_TransformPoint34(&vertex_out, &mat->scale, &rdCamera_pCurCamera->view_matrix);
     if ( rdroid_curCullFlags & 2 )
-        clipResult = rdClip_SphereInFrustrum(rdCamera_pCurCamera->pClipFrustum, &vertex_out, sprite->radius);
+        clipResult = rdClip_SphereInFrustum(rdCamera_pCurCamera->pClipFrustum, &vertex_out, sprite->radius);
     else
         clipResult = thing->clippingIdk;
 
@@ -147,11 +156,11 @@ int rdSprite_Draw(rdThing *thing, rdMatrix34 *mat)
     mesh_in.numVertices = sprite->face.numVertices;
     mesh_in.vertexPosIdx = sprite->face.vertexPosIdx;
     mesh_in.vertexUVIdx = sprite->face.vertexUVIdx;
-    mesh_in.verticesProjected = rdSprite_inVerts;
+    mesh_in.vertices = rdSprite_inVerts;
     mesh_in.paDynamicLight = 0;
     mesh_in.vertexUVs = sprite->vertexUVs;
     mesh_in.intensities = 0;
-    mesh_out.verticesProjected = rdSprite_tmpVerts;
+    mesh_out.vertices = rdSprite_tmpVerts;
     mesh_out.verticesOrig = procEntry->vertices;
     mesh_out.vertexUVs = procEntry->vertexUVs;
     mesh_out.paDynamicLight = procEntry->vertexIntensities;
@@ -224,7 +233,7 @@ int rdSprite_Draw(rdThing *thing, rdMatrix34 *mat)
             procEntry->geometryMode,
             procEntry->lightingMode,
             procEntry->textureMode,
-            (rdVertexIdxInfo *)&mesh_in,
+            &mesh_in,
             &mesh_out,
             &sprite->face.clipIdk);
     else
@@ -232,13 +241,15 @@ int rdSprite_Draw(rdThing *thing, rdMatrix34 *mat)
     if ( mesh_out.numVertices < 3u )
         return 0;
 
-    rdCamera_pCurCamera->fnProjectLst(mesh_out.verticesOrig, mesh_out.verticesProjected, mesh_out.numVertices);
+    rdCamera_pCurCamera->fnProjectLst(mesh_out.verticesOrig, mesh_out.vertices, mesh_out.numVertices);
 
     if ( rdroid_curRenderOptions & 2 )
         procEntry->ambientLight = rdCamera_pCurCamera->ambientLight;
     else
         procEntry->ambientLight = 0.0;
 
+    // Software renderer optimizations
+#ifndef TARGET_TWL
     if ( procEntry->lightingMode )
     {
         if ( procEntry->ambientLight < 1.0 )
@@ -295,6 +306,12 @@ int rdSprite_Draw(rdThing *thing, rdMatrix34 *mat)
             procEntry->lightingMode = rdColormap_pCurMap == rdColormap_pIdentityMap ? 0 : 2;
         }
     }
+#else
+    if ( procEntry->lightingMode == 3 )
+    {
+        procEntry->light_level_static = *procEntry->vertexIntensities;
+    }
+#endif
 
     int procFlags = 1;
     if ( procEntry->geometryMode >= 4 )
@@ -307,6 +324,9 @@ int rdSprite_Draw(rdThing *thing, rdMatrix34 *mat)
     procEntry->type = sprite->face.type;
     procEntry->extralight = sprite->face.extraLight;
     procEntry->material = sprite->face.material;
+
+    // Added: Sprites should always be drawn
+    rdMaterial_EnsureDataForced(procEntry->material);
 
     rdCache_AddProcFace(0, mesh_out.numVertices, procFlags);
     return 1;

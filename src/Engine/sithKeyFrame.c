@@ -1,5 +1,6 @@
 #include "sithKeyFrame.h"
 
+#include "Win95/std.h"
 #include "World/sithWorld.h"
 #include "Engine/rdKeyframe.h"
 #include "Engine/sithPuppet.h"
@@ -11,8 +12,8 @@ int sithKeyFrame_Load(sithWorld *world, int a2)
 {
     unsigned int alloc_size;
 
-    float percent_delta;
-    float load_percent = 80.0;
+    flex_t percent_delta;
+    flex_t load_percent = 80.0;
 
     if ( a2 )
         return 0;
@@ -25,7 +26,7 @@ int sithKeyFrame_Load(sithWorld *world, int a2)
     if ( !numKeyframes )
         return 1;
 
-    percent_delta = 15.0 / (double)numKeyframes;
+    percent_delta = 15.0 / (flex_d_t)numKeyframes;
     if ( !sithKeyFrame_New(world, numKeyframes) )
     {
         stdPrintf(pSithHS->errorPrint, ".\\Engine\\sithPuppet.c", 1538, "Memory error while reading keyframes, line %d.\n", stdConffile_linenum, 0, 0, 0);
@@ -110,7 +111,11 @@ rdKeyframe* sithKeyFrame_LoadEntry(const char *fpath)
         keyframe->id |= 0x8000;
     }
 
+#ifdef SITH_DEBUG_STRUCT_NAMES
     stdHashTable_SetKeyVal(sithPuppet_keyframesHashtable, keyframe->name, keyframe);
+#else
+    stdHashTable_SetKeyVal(sithPuppet_keyframesHashtable, stdFileFromPath(key_fpath), keyframe);
+#endif
     ++world->numKeyframesLoaded;
     return keyframe;
 }
@@ -133,7 +138,11 @@ void sithKeyFrame_Free(sithWorld *world)
 
     for (int idx = 0; idx < world->numKeyframesLoaded; idx++)
     {
+#ifdef SITH_DEBUG_STRUCT_NAMES
         stdHashTable_FreeKey(sithPuppet_keyframesHashtable, world->keyframes[idx].name);
+#else
+        stdHashTable_FreeKeyCrc32(sithPuppet_keyframesHashtable, world->keyframes[idx].namecrc);
+#endif
         rdKeyframe_FreeJoints(&world->keyframes[idx]);
     }
     

@@ -1,12 +1,12 @@
 #ifndef _STDSTRING_H
 #define _STDSTRING_H
 
+#include "types.h"
+#include "jk.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "types.h"
-#include "jk.h"
 
 #define stdString_FastCopy_ADDR (0x0042F120)
 #define stdString_snprintf_ADDR (0x0042F170)
@@ -23,7 +23,7 @@ extern "C" {
 
 char* stdString_FastCopy(const char *str);
 wchar_t* stdString_FastWCopy(const wchar_t *str); // Added
-int stdString_snprintf(char *out, int num, char *fmt, ...);
+int stdString_snprintf(char *out, int num, const char *fmt, ...);
 char* stdString_CopyBetweenDelimiter(char *instr, char *outstr, int out_size, char *find_str);
 char* stdString_GetQuotedStringContents(char *in, char *out, int out_size);
 int stdString_CharToWchar(wchar_t *a1, const char *a2, int a3);

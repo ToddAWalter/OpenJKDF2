@@ -5,19 +5,28 @@
 #include "Platform/std3D.h"
 #include "Engine/rdColormap.h"
 #include "General/stdMath.h"
+#include "stdPlatform.h"
 
 #include <math.h>
 
-#ifdef QOL_IMPROVEMENTS
+#ifdef RDCACHE_RENDER_LINES
 static int rdCache_totalLines = 0;
 static rdLine rdCache_aHWLines[1024];
-int rdroid_curVertexColorMode = 0; // MOTS added
 #endif
 
 #ifdef JKM_LIGHTING
-static float rdCache_aRedIntensities[RDCACHE_MAX_VERTICES];
-static float rdCache_aGreenIntensities[RDCACHE_MAX_VERTICES];
-static float rdCache_aBlueIntensities[RDCACHE_MAX_VERTICES];
+int rdroid_curVertexColorMode = 0; // MOTS added
+static flex_t rdCache_aRedIntensities[RDCACHE_MAX_VERTICES];
+static flex_t rdCache_aGreenIntensities[RDCACHE_MAX_VERTICES];
+static flex_t rdCache_aBlueIntensities[RDCACHE_MAX_VERTICES];
+#endif
+
+#ifdef RDCACHE_RENDER_NGONS
+rdNGon rdCache_aHWSolidNGons[RDCACHE_MAX_TRIS];
+rdNGon rdCache_aHWNormalNGons[RDCACHE_MAX_TRIS];
+
+static int rdCache_totalNormalNGons = 0;
+static int rdCache_totalSolidNGons = 0;
 #endif
 
 int rdCache_Startup()
@@ -27,11 +36,15 @@ int rdCache_Startup()
 
 void rdCache_AdvanceFrame()
 {
-#ifdef SDL2_RENDER
+#if defined(SDL2_RENDER)
     rdroid_curAcceleration = 1;
 #endif
 
-#ifndef SDL2_RENDER
+#if defined(TARGET_TWL)
+    rdCache_dword_865258 = 16;
+#endif
+
+#if !defined(SDL2_RENDER) && !defined(TARGET_TWL)
     if ( rdroid_curAcceleration > 0 )
 #endif
         std3D_StartScene();
@@ -39,7 +52,7 @@ void rdCache_AdvanceFrame()
 
 void rdCache_FinishFrame()
 {
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && !defined(TARGET_TWL)
     if ( rdroid_curAcceleration > 0 )
 #endif
         std3D_EndScene();
@@ -74,14 +87,16 @@ rdProcEntry *rdCache_GetProcEntry()
         idx = rdCache_numProcFaces;
     }
 
-    if ( (unsigned int)(RDCACHE_MAX_VERTICES - rdCache_numUsedVertices) < 0x20 )
+    if ( (unsigned int)(RDCACHE_MAX_VERTICES - rdCache_numUsedVertices) < 0x20 
+        || (unsigned int)(RDCACHE_MAX_VERTICES - rdCache_numUsedTexVertices) < 0x20
+        || (unsigned int)(RDCACHE_MAX_VERTICES - rdCache_numUsedIntensities) < 0x20) {
+#ifdef QOL_IMPROVEMENTS
+        rdCache_Flush();
+        idx = rdCache_numProcFaces;
+#else
         return 0;
-
-    if ( (unsigned int)(RDCACHE_MAX_VERTICES - rdCache_numUsedTexVertices) < 0x20 )
-        return 0;
-
-    if ( (unsigned int)(RDCACHE_MAX_VERTICES - rdCache_numUsedIntensities) < 0x20 )
-        return 0;
+#endif
+    }
 
     out_procEntry = &rdCache_aProcFaces[idx];
     out_procEntry->vertices = &rdCache_aVertices[rdCache_numUsedVertices];
@@ -92,6 +107,10 @@ rdProcEntry *rdCache_GetProcEntry()
     out_procEntry->paGreenIntensities = &rdCache_aGreenIntensities[rdCache_numUsedIntensities];
     out_procEntry->paBlueIntensities = &rdCache_aBlueIntensities[rdCache_numUsedIntensities];
 #endif
+
+    // Added: Try and prevent weird issues.
+    out_procEntry->material = NULL;
+
     return out_procEntry;
 }
 
@@ -107,9 +126,11 @@ void rdCache_Flush()
 
     if ( rdroid_curSortingMethod == 2 )
     {
+#ifndef TARGET_TWL
         _qsort(rdCache_aProcFaces, rdCache_numProcFaces, sizeof(rdProcEntry), (int (__cdecl *)(const void *, const void *))rdCache_ProcFaceCompare);
+#endif
     }
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && !defined(TARGET_TWL)
     if ( rdroid_curAcceleration <= 0 )
     {
         if ( rdroid_curOcclusionMethod )
@@ -157,17 +178,15 @@ void rdCache_Flush()
     rdCache_Reset();
 }
 
-#if 1
-
 int rdCache_SendFaceListToHardware()
 {
     int v0; // ecx
     int v1; // edx
-    double v2; // st7
-    double v3; // st6
-    double v4; // st5
+    flex_d_t v2; // st7
+    flex_d_t v3; // st6
+    flex_d_t v4; // st5
     rdClipFrustum *v7; // edx
-    double v8; // st7
+    flex_d_t invZFar; // st7
     int mipmap_level; // edi
     rdProcEntry *active_6c; // esi
     v11_struct v11; // edx
@@ -176,51 +195,47 @@ int rdCache_SendFaceListToHardware()
     rdTexinfo *v15; // eax
     rdTexture *sith_tex_sel; // esi
     rdDDrawSurface *tex2_arr_sel; // eax
-    float *vert_lights_iter; // ecx
+    flex_t *vert_lights_iter; // ecx
     int vert_lights_iter_cnt; // edx
-    double v21; // st7
-    double v22; // st7
-    double v23; // st7
-    double v24; // st7
-    double v25; // st7
-    double v26; // st7
-    double v27; // st7
+    flex_d_t v21; // st7
+    flex_d_t v22; // st7
+    flex_d_t v23; // st7
+    flex_d_t v24; // st7
+    flex_d_t v25; // st7
+    flex_d_t v26; // st7
+    flex_d_t v27; // st7
     rdVector3 *iterating_6c_vtxs_; // esi
     int v35; // ecx
-    double v36; // st7
-    double d3dvtx_zval; // st7
-    double v38; // st6
-    double light_level; // st7
+    flex_d_t v36; // st7
+    flex_d_t d3dvtx_zval; // st7
+    flex_d_t v38; // st6
+    flex_d_t light_level; // st7
     int vertex_g; // ebx
     int vertex_r; // edi
     rdColormap *v45; // eax
-    double v47; // st7
+    flex_d_t v47; // st7
     __int64 v48; // rax
-    double v49; // st7
+    flex_d_t v49; // st7
     int vertex_b; // cl
     rdProcEntry *v52; // esi
     int final_vertex_color; // eax
     rdVector2 *uvs_in_pixels; // eax
-    double tex_v; // st7
-    int v61; // ecx
-    int lighting_maybe_2; // edx
-    unsigned int v63; // edi
+    flex_d_t tex_v; // st7
     int tri; // eax
-    int lighting_maybe; // ebx
     size_t tri_idx; // eax
-    float *v70; // ecx
+    flex_t *v70; // ecx
     int v71; // edx
-    double v72; // st7
-    double v73; // st7
-    double v75; // st7
-    double v76; // st7
-    double v78; // st7
+    flex_d_t v72; // st7
+    flex_d_t v73; // st7
+    flex_d_t v75; // st7
+    flex_d_t v76; // st7
+    flex_d_t v78; // st7
     rdDDrawSurface *v80; // edx
-    double v87; // st7
-    double v88; // st7
-    double v89; // st6
+    flex_d_t v87; // st7
+    flex_d_t v88; // st7
+    flex_d_t v89; // st6
     rdColormap *v91; // esi
-    double v92; // st7
+    flex_d_t v92; // st7
     int v93; // eax
     int v94; // ebx
     int v95; // edx
@@ -228,7 +243,7 @@ int rdCache_SendFaceListToHardware()
     int v97; // eax
     int v98; // ecx
     __int64 v100; // rax
-    double v101; // st7
+    flex_d_t v101; // st7
     uint8_t v103; // cl
     int v104; // eax
     unsigned int v108; // edi
@@ -239,19 +254,18 @@ int rdCache_SendFaceListToHardware()
     rdTri *v114; // eax
     int v115; // ebx
     unsigned int v117; // eax
-    float actual_width; // [esp+1Ch] [ebp-84h]
-    float actual_height; // [esp+20h] [ebp-80h]
-    float v121; // [esp+24h] [ebp-7Ch]
-    float green_scalar; // [esp+34h] [ebp-6Ch]
-    float blue_scalar; // [esp+38h] [ebp-68h]
+    flex_t actual_width; // [esp+1Ch] [ebp-84h]
+    flex_t actual_height; // [esp+20h] [ebp-80h]
+    flex_t v121; // [esp+24h] [ebp-7Ch]
+    flex_t green_scalar; // [esp+34h] [ebp-6Ch]
+    flex_t blue_scalar; // [esp+38h] [ebp-68h]
     int rend_6c_current_idx; // [esp+3Ch] [ebp-64h]
-    float red_scalar; // [esp+40h] [ebp-60h]
+    flex_t red_scalar; // [esp+40h] [ebp-60h]
     int v129; // [esp+44h] [ebp-5Ch]
     int v130; // [esp+48h] [ebp-58h]
     int vertex_a; // [esp+4Ch] [ebp-54h]
     int alpha_upshifta; // [esp+4Ch] [ebp-54h]
     int alpha_is_opaque; // [esp+50h] [ebp-50h]
-    float v134; // [esp+54h] [ebp-4Ch]
     int tri_vert_idx; // [esp+58h] [ebp-48h]
     int flags_idk; // [esp+60h] [ebp-40h]
     rdTexinfo *v137; // [esp+64h] [ebp-3Ch]
@@ -263,7 +277,7 @@ int rdCache_SendFaceListToHardware()
     int flags_idk_; // [esp+78h] [ebp-28h]
     int a3; // [esp+7Ch] [ebp-24h]
     int lighting_capability; // [esp+80h] [ebp-20h]
-    float v148; // [esp+84h] [ebp-1Ch]
+    flex_t v148; // [esp+84h] [ebp-1Ch]
     int blue; // [esp+8Ch] [ebp-14h]
     int red_and_alpha; // [esp+98h] [ebp-8h]
     int green; // [esp+9Ch] [ebp-4h]
@@ -312,6 +326,7 @@ int rdCache_SendFaceListToHardware()
         v1 = 1;
         v129 = 1;
     }
+
     if ( v0 || v1 || (rdGetVertexColorMode() == 1)) // MOTS added
     {
         flags_idk |= 0x8000;
@@ -320,12 +335,11 @@ int rdCache_SendFaceListToHardware()
     std3D_ResetRenderList();
     rdCache_ResetRenderList();
     v7 = rdCamera_pCurCamera->pClipFrustum;
-    v8 = 1.0 / v7->field_0.z;
+    invZFar = 1.0 / v7->zFar;
     rend_6c_current_idx = 0;
-    v134 = v8;
     
     for (rend_6c_current_idx = 0; rend_6c_current_idx < rdCache_numProcFaces; rend_6c_current_idx++)
-    {        
+    {
         active_6c = &rdCache_aProcFaces[rend_6c_current_idx];
         mipmap_level = a3;
 
@@ -335,13 +349,13 @@ int rdCache_SendFaceListToHardware()
         else
             v148 = 0.0;
 
-        // Added: We need to know if a face is double-sided
+        // Added: We need to know if a face is flex_d_t-sided
         if (active_6c->type & RD_FF_DOUBLE_SIDED && active_6c->light_flags)
         {
             flags_idk_ |= 0x10000;
         }
 
-#ifdef SDL2_RENDER
+#if defined(SDL2_RENDER) || defined(TARGET_TWL)
         d3d_maxVertices = STD3D_MAX_VERTICES;
 #endif
         if ( active_6c->numVertices + rdCache_totalVerts >= d3d_maxVertices )
@@ -388,6 +402,27 @@ int rdCache_SendFaceListToHardware()
             continue;
         }
 
+        // Added: EnsureData stuff
+        if (mipmap_related == 3) {
+            rdMaterial_EnsureMetadata(v11.material);
+        }
+        else {
+            rdMaterial_EnsureData(v11.material);
+#ifdef TARGET_TWL
+            // Added: fall back to colors with no data
+            if (!v11.material->bDataLoaded) {
+                v11.mipmap_related = 3;
+                mipmap_related = 3;
+            }
+#endif
+        }
+        
+#if defined(RDMATERIAL_LRU_LOAD_UNLOAD)
+        if (!(v11.material->bDataLoaded || (v11.material->bMetadataLoaded && mipmap_related == 3))) {
+            continue;
+        }
+#endif
+
         v14 = active_6c->wallCel;
         if ( v14 == -1 )
         {
@@ -398,7 +433,8 @@ int rdCache_SendFaceListToHardware()
                     v14 = v11.material->num_texinfo - 1;
             }
         }
-        else if ( v14 < 0 )
+        
+        if ( v14 < 0 ) // Added: don't do else if here
         {
             v14 = 0;
         }
@@ -406,15 +442,18 @@ int rdCache_SendFaceListToHardware()
         {
             v14 = v11.material->num_texinfo - 1;
         }
+        else if ( v14 >= RDMATERIAL_MAX_TEXINFOS ) { // Added
+            v14 = RDMATERIAL_MAX_TEXINFOS-1;
+        }
 
         v15 = v11.material->texinfos[v14];
         v137 = v15;
-        if ( v11.mipmap_related == 4 && (v15->header.texture_type & 8) == 0 )
+        if ( v11.mipmap_related == 4 && (v15 && v15->header.texture_type & 8) == 0 ) // Added: v15 nullptr check
         {
             v11.mipmap_related = 3;
             mipmap_related = 3;
         }
-        if ( !v15 || (v15->header.texture_type & 8) == 0 )
+        if ((mipmap_related == 3) || !v15 || (v15 && (v15->header.texture_type & 8) == 0) || (v15 && !v15->texture_ptr) ) // Added: v15 nullptr check, !v15->texture_ptr, mipmap_related check
         {
             tex2_arr_sel = 0;
         }
@@ -422,36 +461,36 @@ int rdCache_SendFaceListToHardware()
         {
             sith_tex_sel = v15->texture_ptr;
 
-            float z_min = active_6c->z_min * rdCamera_GetMipmapScalar(); // MOTS added
+            flex_t z_min = active_6c->z_min * rdCamera_GetMipmapScalar(); // MOTS added
             
             mipmap_level = 1;
             if (sith_tex_sel->num_mipmaps == 2)
             {
-                if ( z_min <= (double)rdroid_aMipDistances.y )
+                if ( z_min <= (flex_d_t)rdroid_aMipDistances.y )
                 {
                     mipmap_level = 0;
                 }
             }
             else if (sith_tex_sel->num_mipmaps == 3)
             {
-                if ( z_min <= (double)rdroid_aMipDistances.x )
+                if ( z_min <= (flex_d_t)rdroid_aMipDistances.x )
                 {
                     mipmap_level = 0;
                 }
-                else if ( z_min > (double)rdroid_aMipDistances.y )
+                else if ( z_min > (flex_d_t)rdroid_aMipDistances.y )
                 {
                     mipmap_level = 2;
                 }
             }
             else if (sith_tex_sel->num_mipmaps == 4)
             {
-                if ( z_min <= (double)rdroid_aMipDistances.x )
+                if ( z_min <= (flex_d_t)rdroid_aMipDistances.x )
                 {
                     mipmap_level = 0;
                 }
-                else if ( z_min > (double)rdroid_aMipDistances.y )
+                else if ( z_min > (flex_d_t)rdroid_aMipDistances.y )
                 {
-                    if ( z_min > (double)rdroid_aMipDistances.z )
+                    if ( z_min > (flex_d_t)rdroid_aMipDistances.z )
                         mipmap_level = 3;
                     else
                         mipmap_level = 2;
@@ -461,6 +500,39 @@ int rdCache_SendFaceListToHardware()
             {
                 mipmap_level = 0;
             }
+
+            // Look for the closest mipmap that's been loaded
+#ifdef TARGET_TWL
+            int mipmap_level_orig = mipmap_level;
+            stdVBuffer* mipmap = sith_tex_sel->texture_struct[mipmap_level];
+
+            alpha_is_opaque = 1;
+            while (!mipmap && mipmap_level < sith_tex_sel->num_mipmaps) {
+                mipmap = sith_tex_sel->texture_struct[mipmap_level];
+                if (mipmap) {
+                    break;
+                }
+
+                mipmap_level += 1;
+            }
+
+            if (!mipmap) {
+                mipmap_level = mipmap_level_orig;
+                while (!mipmap && mipmap_level > 0) {
+                    mipmap = sith_tex_sel->texture_struct[mipmap_level];
+                    if (mipmap) {
+                        break;
+                    }
+
+                    mipmap_level -= 1;
+                }
+            }
+
+            if (!mipmap) {
+                mipmap_level = mipmap_level_orig;
+            }
+#endif
+
             a3 = mipmap_level;
 
             if ( (sith_tex_sel->alpha_en & 1) != 0 && std3D_HasAlpha() )
@@ -490,12 +562,24 @@ int rdCache_SendFaceListToHardware()
 #endif
             }
 
-            if ( !rdMaterial_AddToTextureCache(v11.material, sith_tex_sel, mipmap_level, alpha_is_opaque, v14) )
+            if (!rdMaterial_AddToTextureCache(v11.material, sith_tex_sel, mipmap_level, alpha_is_opaque, v14) )
             {
+#if defined(RDMATERIAL_LRU_LOAD_UNLOAD)
+                // Just draw solids if we can
+                if (v11.material->bMetadataLoaded) {
+                    v11.mipmap_related = 3;
+                    mipmap_related = 3;
+                }
+                else {
+                    continue;
+                }
+#else
                 rdCache_DrawRenderList();
                 rdCache_ResetRenderList();
-                if ( !rdMaterial_AddToTextureCache(v11.material, sith_tex_sel, mipmap_level, alpha_is_opaque, v14) )
+                if ( !rdMaterial_AddToTextureCache(v11.material, sith_tex_sel, mipmap_level, alpha_is_opaque, v14) ) {
                     return 0;
+                }
+#endif
             }
 
             tex2_arr_sel = &sith_tex_sel->alphaMats[mipmap_level];
@@ -503,15 +587,30 @@ int rdCache_SendFaceListToHardware()
             if ( alpha_is_opaque )
                 tex2_arr_sel = &sith_tex_sel->opaqueMats[mipmap_level];
 
-            std3D_GetValidDimension(
-                sith_tex_sel->texture_struct[mipmap_level]->format.width,
-                sith_tex_sel->texture_struct[mipmap_level]->format.height,
-                &out_width,
-                &out_height);
+            // Added: nullptr check and fallback
+            if (sith_tex_sel && sith_tex_sel->texture_struct[mipmap_level]) {
+                std3D_GetValidDimension(
+                    sith_tex_sel->texture_struct[mipmap_level]->format.width,
+                    sith_tex_sel->texture_struct[mipmap_level]->format.height,
+                    &out_width,
+                    &out_height);
+            }
+            else {
+                out_width = 8;
+                out_height = 8;
+            }
+            
             v11.mipmap_related = mipmap_related;
-            actual_width = (float)(out_width << mipmap_level);
-            actual_height = (float)(out_height << mipmap_level);
+            actual_width = (flex_t)(out_width << mipmap_level); // FLEXTODO
+            actual_height = (flex_t)(out_height << mipmap_level); // FLEXTODO
         }
+
+#ifdef TARGET_TWL
+        // We need to know if a triangle is sky texture (affine texture)
+        if (active_6c->textureMode == RD_TEXTUREMODE_AFFINE) {
+            flags_idk_ |= 0x20000;
+        }
+#endif
 
         if ( v11.mipmap_related != 3 )
         {
@@ -546,9 +645,9 @@ int rdCache_SendFaceListToHardware()
                 // MOTS added
 #ifdef JKM_LIGHTING
                 if (rdGetVertexColorMode() == 1) {
-                    float* iterRedIntense = active_6c->paRedIntensities;
-                    float* iterGreenIntense = active_6c->paGreenIntensities;
-                    float* iterBlueIntense = active_6c->paBlueIntensities;
+                    flex_t* iterRedIntense = active_6c->paRedIntensities;
+                    flex_t* iterGreenIntense = active_6c->paGreenIntensities;
+                    flex_t* iterBlueIntense = active_6c->paBlueIntensities;
 
                     vert_lights_iter_cnt = active_6c->numVertices;
                     do
@@ -583,7 +682,15 @@ int rdCache_SendFaceListToHardware()
                     while ( vert_lights_iter_cnt );
                 }
 
-                //active_6c->light_level_static = v26 * 255.0;
+#ifdef TARGET_TWL
+                // Added: populate this here too
+                if (!(rdGetVertexColorMode() != 1 || lighting_capability != 3) && lighting_capability != 0) {
+                    v24 = active_6c->extralight + active_6c->light_level_static;
+                    v25 = stdMath_Clamp(v24, 0.0, 1.0);
+                    v26 = stdMath_Clamp(v25, v148, 1.0);
+                    active_6c->light_level_static = v26 * 255.0;
+                }
+#endif
             }
 
             iterating_6c_vtxs = active_6c->vertices;
@@ -591,21 +698,59 @@ int rdCache_SendFaceListToHardware()
 
             for (int vtx_idx = 0; vtx_idx < active_6c->numVertices; vtx_idx++)
             {
+#ifndef TARGET_TWL
+#ifdef RENDER_ROUND_VERTICES
+                rdCache_aHWVertices[rdCache_totalVerts].x = (iterating_6c_vtxs[vtx_idx].x);
+                rdCache_aHWVertices[rdCache_totalVerts].y = (active_6c->vertices[vtx_idx].y);
+#else
                 rdCache_aHWVertices[rdCache_totalVerts].x = (iterating_6c_vtxs[vtx_idx].x); // Added: The original game rounded to ints here (with ceilf?)
-                iterating_6c_vtxs_ = active_6c->vertices;
                 rdCache_aHWVertices[rdCache_totalVerts].y = (active_6c->vertices[vtx_idx].y); // Added: The original game rounded to ints here (with ceilf?)
+#endif
+#endif
+                iterating_6c_vtxs_ = active_6c->vertices;
+
+                // DSi prefers z vertices directly
+#ifdef TARGET_TWL
+                v36 = iterating_6c_vtxs_[vtx_idx].z;
+                iterating_6c_vtxs = iterating_6c_vtxs_;
+                d3dvtx_zval = iterating_6c_vtxs_[vtx_idx].z;
+                v38 = (flex_t)d3dvtx_zval;
+                if ( rdCache_dword_865258 != 16 )
+                    v38 = SITHCAMERA_ZFAR - v38;
+#else
                 v36 = iterating_6c_vtxs_[vtx_idx].z;
                 iterating_6c_vtxs = iterating_6c_vtxs_;
                 if ( v36 == 0.0 )
                     d3dvtx_zval = 0.0;
                 else
                     d3dvtx_zval = 1.0 / iterating_6c_vtxs_[vtx_idx].z;
-                v38 = d3dvtx_zval * v134;
+                v38 = d3dvtx_zval * invZFar;
                 if ( rdCache_dword_865258 != 16 )
                     v38 = 1.0 - v38;
+#endif
+
+#ifdef TARGET_TWL
+                rdCache_aHWVertices[rdCache_totalVerts].x = ((active_6c->vertices[vtx_idx].x)); // Added: The original game rounded to ints here (with ceilf?)
+                rdCache_aHWVertices[rdCache_totalVerts].y = ((active_6c->vertices[vtx_idx].z)); // Added: The original game rounded to ints here (with ceilf?)
+                //v38 = stdMath_Clamp(v38, 0.0, SITHCAMERA_ZFAR);
+                v38 = active_6c->vertices[vtx_idx].y;
+#endif
                 rdCache_aHWVertices[rdCache_totalVerts].z = v38;
+
+                // Don't waste time with this on DSi
+#ifdef TARGET_TWL
+                //rdCache_aHWVertices[rdCache_totalVerts].nx = 0.0;
+#else
                 rdCache_aHWVertices[rdCache_totalVerts].nx = d3dvtx_zval / 32.0;
+#endif
+
+#ifdef TARGET_TWL
+                rdCache_aHWVertices[rdCache_totalVerts].lightLevel = 0xFF;
+#endif
+
+#ifndef TARGET_TWL
                 rdCache_aHWVertices[rdCache_totalVerts].nz = 0.0;
+#endif
                 if ( lighting_capability == 0 )
                 {
                     vertex_b = 255;
@@ -635,6 +780,9 @@ int rdCache_SendFaceListToHardware()
 #ifdef SDL2_RENDER
                         rdCache_aHWVertices[rdCache_totalVerts].lightLevel = light_level / 255.0;
 #endif
+#ifdef TARGET_TWL
+                        rdCache_aHWVertices[rdCache_totalVerts].lightLevel = (int)light_level;
+#endif
                         
 
                         vertex_b = (__int64)light_level;
@@ -654,16 +802,22 @@ int rdCache_SendFaceListToHardware()
                     {
                         //printf("%f\n", active_6c->paRedIntensities[vtx_idx]);
                         light_level = 1.0;
-                        double intRed = active_6c->paRedIntensities[vtx_idx];
-                        double intGreen = active_6c->paGreenIntensities[vtx_idx];
-                        double intBlue = active_6c->paBlueIntensities[vtx_idx];
+                        flex_d_t intRed = active_6c->paRedIntensities[vtx_idx];
+                        flex_d_t intGreen = active_6c->paGreenIntensities[vtx_idx];
+                        flex_d_t intBlue = active_6c->paBlueIntensities[vtx_idx];
 
                         // Added for SDL2
 #ifdef SDL2_RENDER
-                        double luma = (0.2126 * intRed) + (0.7152 * intGreen) + (0.0722 * intBlue);
+                        flex_d_t luma = (0.2126 * intRed) + (0.7152 * intGreen) + (0.0722 * intBlue);
                         light_level = luma;
 
                         rdCache_aHWVertices[rdCache_totalVerts].lightLevel = luma / 255.0;
+#endif
+#ifdef TARGET_TWL
+                        // TODO: could probably find something cheaper
+                        //flex_t luma = (0.2126 * intRed) + (0.7152 * intGreen) + (0.0722 * intBlue);
+                        //light_level = luma;
+                        rdCache_aHWVertices[rdCache_totalVerts].lightLevel = (int)active_6c->light_level_static;
 #endif
 
                         vertex_b = (int)intBlue;
@@ -686,11 +840,11 @@ int rdCache_SendFaceListToHardware()
                 v45 = active_6c->colormap;
                 if ( v45 != rdColormap_pIdentityMap )
                 {
-                    v47 = v45->tint.y * (double)green;
-                    vertex_r = (uint8_t)(__int64)(v45->tint.x * (double)red_and_alpha);
+                    v47 = v45->tint.y * (flex_d_t)green;
+                    vertex_r = (uint8_t)(__int64)(v45->tint.x * (flex_d_t)red_and_alpha);
                     red_and_alpha = vertex_r;
                     v48 = (__int64)v47;
-                    v49 = v45->tint.z * (double)blue;
+                    v49 = v45->tint.z * (flex_d_t)blue;
                     vertex_g = (uint8_t)v48;
                     green = (uint8_t)v48;
                     vertex_b = (uint8_t)(__int64)v49;
@@ -717,44 +871,23 @@ int rdCache_SendFaceListToHardware()
                 }
                 if ( v130 )
                 {
-                    vertex_r += (__int64)((double)red_and_alpha * red_scalar);
+                    vertex_r += (__int64)((flex_d_t)red_and_alpha * red_scalar);
                     red_and_alpha = vertex_r;
-                    vertex_g += (__int64)((double)green * green_scalar);
+                    vertex_g += (__int64)((flex_d_t)green * green_scalar);
                     green = vertex_g;
-                    vertex_b += (__int64)((double)blue * blue_scalar);
+                    vertex_b += (__int64)((flex_d_t)blue * blue_scalar);
                     blue = vertex_b;
                 }
                 if ( rdroid_curColorEffects.fade < 1.0 )
                 {
-                    vertex_r = (__int64)((double)red_and_alpha * rdroid_curColorEffects.fade);
-                    vertex_g = (__int64)((double)green * rdroid_curColorEffects.fade);
-                    vertex_b = (__int64)((double)blue * rdroid_curColorEffects.fade);
+                    vertex_r = (__int64)((flex_d_t)red_and_alpha * rdroid_curColorEffects.fade);
+                    vertex_g = (__int64)((flex_d_t)green * rdroid_curColorEffects.fade);
+                    vertex_b = (__int64)((flex_d_t)blue * rdroid_curColorEffects.fade);
                 }
-                
-                if ( vertex_r < 0 )
-                {
-                    vertex_r = (vertex_r & ~0xFF) | 0;
-                }
-                else if ( vertex_r > 255 )
-                {
-                    vertex_r = (vertex_r & ~0xFF) | 0xFF;
-                }
-                if ( vertex_g < 0 )
-                {
-                    vertex_g = (vertex_g & ~0xFF) | 0;
-                }
-                else if ( vertex_g > 255 )
-                {
-                    vertex_g = (vertex_g & ~0xFF) | 0xFF;
-                }
-                if ( vertex_b < 0 )
-                {
-                    vertex_b = (vertex_b & ~0xFF) | 0;
-                }
-                else if ( vertex_b > 255 )
-                {
-                    vertex_b = (vertex_b & ~0xFF) | 0xFF;
-                }
+
+                vertex_r = stdMath_ClampInt(vertex_r, 0, 255);
+                vertex_g = stdMath_ClampInt(vertex_g, 0, 255);
+                vertex_b = stdMath_ClampInt(vertex_b, 0, 255);
 
                 v52 = active_6c;
                 final_vertex_color = vertex_b | (((uint8_t)vertex_g | ((vertex_a | (uint8_t)vertex_r) << 8)) << 8);
@@ -762,13 +895,24 @@ int rdCache_SendFaceListToHardware()
                 // For some reason, ny holds the vertex color.
                 rdCache_aHWVertices[rdCache_totalVerts].color = final_vertex_color;
                 uvs_in_pixels = v52->vertexUVs;
-                
+
+                // DSi wants UVs in pixels
+#if defined(TARGET_TWL)
+#if defined(EXPERIMENTAL_FIXED_POINT)
+                rdCache_aHWVertices[rdCache_totalVerts].tu = uvs_in_pixels[vtx_idx].x >> mipmap_level;
+                rdCache_aHWVertices[rdCache_totalVerts].tv = uvs_in_pixels[vtx_idx].y >> mipmap_level;
+#else
+                rdCache_aHWVertices[rdCache_totalVerts].tu = uvs_in_pixels[vtx_idx].x / (1<<mipmap_level);
+                rdCache_aHWVertices[rdCache_totalVerts].tv = uvs_in_pixels[vtx_idx].y / (1<<mipmap_level);
+#endif
+#else
                 rdCache_aHWVertices[rdCache_totalVerts].tu = uvs_in_pixels[vtx_idx].x / actual_width;
                 rdCache_aHWVertices[rdCache_totalVerts].tv = uvs_in_pixels[vtx_idx].y / actual_height;
+#endif
                 
                 ++rdCache_totalVerts;
             }
-#ifdef QOL_IMPROVEMENTS
+#ifdef RDCACHE_RENDER_LINES
             if ( active_6c->numVertices <= 2 )
             {
                 tri_idx = rdCache_totalLines;
@@ -779,12 +923,33 @@ int rdCache_SendFaceListToHardware()
                 rdCache_aHWVertices[rdCache_aHWLines[tri_idx].v1].color = active_6c->extraData;
                 rdCache_aHWVertices[rdCache_aHWLines[tri_idx].v2].color = active_6c->extraData;
 
+#ifndef TARGET_TWL
                 rdCache_aHWVertices[rdCache_aHWLines[tri_idx].v1].nz = 0.0;
                 rdCache_aHWVertices[rdCache_aHWLines[tri_idx].v2].nz = 0.0;
-                
+#endif
                 rdCache_totalLines++;
             }
             else 
+#endif
+
+
+#ifdef RDCACHE_RENDER_NGONS
+            if ( active_6c->numVertices >= 3 )
+            {
+                tri_idx = rdCache_totalNormalNGons;
+                rdCache_aHWNormalNGons[tri_idx].vertIdxStart = tri_vert_idx;
+                rdCache_aHWNormalNGons[tri_idx].numVertices = active_6c->numVertices;
+                rdCache_aHWNormalNGons[tri_idx].flags = flags_idk_;
+                rdCache_aHWNormalNGons[tri_idx].texture = tex2_arr_sel;
+                rdCache_totalNormalNGons++;
+            }
+#else
+#ifdef TARGET_TWL
+            if (rdCache_totalNormalTris + (active_6c->numVertices-2) >= RDCACHE_MAX_TRIS)
+            {
+                rdCache_DrawRenderList();
+                rdCache_ResetRenderList();
+            }
 #endif
             if ( active_6c->numVertices <= 3 )
             {
@@ -798,30 +963,29 @@ int rdCache_SendFaceListToHardware()
             }
             else
             {
-                v61 = active_6c->numVertices - 2;
-                v63 = active_6c->numVertices - 1;
-                lighting_maybe_2 = 0;
-                lighting_capability = 1;
-                for (int pushed_tris = 0; pushed_tris <= v61; pushed_tris++)
+                int v1 = active_6c->numVertices - 1;
+                int v2 = 1;
+                int v3 = 0;
+                for (int pushed_tris = 0; pushed_tris < active_6c->numVertices - 2; pushed_tris++)
                 {
-                    lighting_maybe = lighting_capability;
-                    rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].v3 = tri_vert_idx + lighting_maybe_2;
-                    rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].v2 = tri_vert_idx + lighting_maybe;
-                    rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].v1 = tri_vert_idx + v63;
+                    rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].v3 = tri_vert_idx + v3;
+                    rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].v2 = tri_vert_idx + v2;
+                    rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].v1 = tri_vert_idx + v1;
                     rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].flags = flags_idk_;
                     rdCache_aHWNormalTris[rdCache_totalNormalTris+pushed_tris].texture = tex2_arr_sel;
                     if ( (pushed_tris & 1) != 0 )
                     {
-                        lighting_maybe_2 = v63--;
+                        v3 = v1--;
                     }
                     else
                     {
-                        lighting_maybe_2 = lighting_maybe;
-                        lighting_capability = lighting_maybe + 1;
+                        v3 = v2;
+                        v2 = v2 + 1;
                     }
                 }
-                rdCache_totalNormalTris += v61;
+                rdCache_totalNormalTris += active_6c->numVertices - 2;
             }
+#endif
             continue;
         }
 
@@ -843,9 +1007,9 @@ solid_tri:
             // MOTS added
 #ifdef JKM_LIGHTING
             if (rdGetVertexColorMode() == 1) {
-                float* iterRedIntense = active_6c->paRedIntensities;
-                float* iterGreenIntense = active_6c->paGreenIntensities;
-                float* iterBlueIntense = active_6c->paBlueIntensities;
+                flex_t* iterRedIntense = active_6c->paRedIntensities;
+                flex_t* iterGreenIntense = active_6c->paGreenIntensities;
+                flex_t* iterBlueIntense = active_6c->paBlueIntensities;
 
                 v71 = active_6c->numVertices;
                 do
@@ -883,10 +1047,19 @@ solid_tri:
                 }
                 while ( v71 );
             }
+
+            // Added: always calculate light_level_static
+            /*v75 = active_6c->extralight + active_6c->light_level_static;
+            v76 = stdMath_Clamp(stdMath_Clamp(v75, 0.0, 1.0), v148, 1.0);
+            active_6c->light_level_static = v76 * 63.0;*/
             goto LABEL_232;
         }
         else
         {
+            // Added: always calculate light_level_static
+            /*v75 = active_6c->extralight + active_6c->light_level_static;
+            v76 = stdMath_Clamp(stdMath_Clamp(v75, 0.0, 1.0), v148, 1.0);
+            active_6c->light_level_static = v76 * 63.0;*/
             goto LABEL_232;
         }
 
@@ -895,25 +1068,65 @@ LABEL_232:
         alpha_upshifta = red_and_alpha << 8;
         for (int vtx_idx = 0; vtx_idx < active_6c->numVertices; vtx_idx++)
         {
+#ifndef TARGET_TWL
             rdCache_aHWVertices[rdCache_totalVerts].x = (active_6c->vertices[tmpiter].x);  // Added: The original game rounded to ints here (with ceilf?)
             rdCache_aHWVertices[rdCache_totalVerts].y = (active_6c->vertices[tmpiter].y);  // Added: The original game rounded to ints here (with ceilf?)
+#endif
             v87 = active_6c->vertices[tmpiter].z;
 
+            // DSi prefers z vertices directly
+#ifdef TARGET_TWL
+            v88 = active_6c->vertices[tmpiter].z;
+            v89 = v88;
+            if ( rdCache_dword_865258 != 16 )
+                v89 = SITHCAMERA_ZFAR - v89;
+#else
             if ( v87 == 0.0 )
                 v88 = 0.0;
             else
                 v88 = 1.0 / active_6c->vertices[tmpiter].z;
-            v89 = v88 * v134;
+            v89 = v88 * invZFar;
             if ( rdCache_dword_865258 != 16 )
                 v89 = 1.0 - v89;
+#endif
+#ifdef TARGET_TWL
+            rdCache_aHWVertices[rdCache_totalVerts].x = ((active_6c->vertices[tmpiter].x));  // Added: The original game rounded to ints here (with ceilf?)
+            rdCache_aHWVertices[rdCache_totalVerts].y = ((active_6c->vertices[tmpiter].z));  // Added: The original game rounded to ints here (with ceilf?)
+            //v89 = stdMath_Clamp(v89, 0.0, SITHCAMERA_ZFAR);
+            v89 = active_6c->vertices[tmpiter].y;
+#endif
             rdCache_aHWVertices[rdCache_totalVerts].z = v89;
 
+            // Don't waste time with this on DSi
+#ifdef TARGET_TWL
+            //rdCache_aHWVertices[rdCache_totalVerts].nx = 0.0;
+            //rdCache_aHWVertices[rdCache_totalVerts].nz = 0.0;
+#else
             rdCache_aHWVertices[rdCache_totalVerts].nx = v88 / 32.0;
             rdCache_aHWVertices[rdCache_totalVerts].nz = 0.0;
-            if ( lighting_capability == 0 )
+#endif
+
+#ifdef TARGET_TWL
+            rdCache_aHWVertices[rdCache_totalVerts].lightLevel = 0xFF;
+#endif
+
+            // Added: nullptr check and fallback
+            if (!(rdColormap *)active_6c->colormap || !v137) {
+                v93 = 0xFF;
+                v94 = 0xFF;
+                v95 = 0xFF;
+                v96 = 0xFF;
+                red_and_alpha = v96;
+                green = v94;
+                blue = v95;
+                v91 = (rdColormap *)active_6c->colormap;
+                goto skip_colormap_deref;
+            }
+
+            if ( lighting_capability == 0) // Added: v137 nullptr check
             {
                 v91 = (rdColormap *)active_6c->colormap;
-                v97 = v137->header.field_4;
+                v97 = v137->header.solidColor;
                 v94 = (uint8_t)v91->colors[v97].g;
                 v98 = (uint8_t)v91->colors[v97].b;
                 v96 = (uint8_t)v91->colors[v97].r;
@@ -937,7 +1150,10 @@ LABEL_232:
 #ifdef SDL2_RENDER
                     rdCache_aHWVertices[rdCache_totalVerts].lightLevel = v92 / 255.0;
 #endif
-                    v93 = *((uint8_t *)v91->lightlevel + 256 * ((__int64)v92 & 0x3F) + v137->header.field_4);
+#ifdef TARGET_TWL
+                    rdCache_aHWVertices[rdCache_totalVerts].lightLevel = (int)v92 << 2;
+#endif
+                    v93 = *((uint8_t *)v91->lightlevel + 256 * ((__int64)v92 & 0x3F) + v137->header.solidColor);
                     v94 = (uint8_t)v91->colors[v93].g;
                     v95 = (uint8_t)v91->colors[v93].b;
                     v96 = (uint8_t)v91->colors[v93].r;
@@ -949,15 +1165,15 @@ LABEL_232:
                 else
                 {
                     v91 = (rdColormap *)active_6c->colormap;
-                    uint8_t baseLight = *((uint8_t *)v91->lightlevel + v137->header.field_4);
-                    double intRed = active_6c->paRedIntensities[vtx_idx] * 255.0 - 0.5;
-                    double intGreen = active_6c->paGreenIntensities[vtx_idx] * 255.0 - 0.5;
-                    double intBlue = active_6c->paBlueIntensities[vtx_idx] * 255.0 - 0.5;
+                    uint8_t baseLight = *((uint8_t *)v91->lightlevel + v137->header.solidColor);
+                    flex_d_t intRed = active_6c->paRedIntensities[vtx_idx] * 255.0 - 0.5;
+                    flex_d_t intGreen = active_6c->paGreenIntensities[vtx_idx] * 255.0 - 0.5;
+                    flex_d_t intBlue = active_6c->paBlueIntensities[vtx_idx] * 255.0 - 0.5;
 
 
-                    intRed += (float)v91->colors[baseLight].r;
-                    intGreen += (float)v91->colors[baseLight].r;
-                    intBlue += (float)v91->colors[baseLight].r;
+                    intRed += (flex_t)v91->colors[baseLight].r; // FLEXTODO
+                    intGreen += (flex_t)v91->colors[baseLight].r; // FLEXTODO
+                    intBlue += (flex_t)v91->colors[baseLight].r; // FLEXTODO
 
                     v94 = (uint8_t)stdMath_Clamp(intGreen, 0.0, 255.0);
                     v95 = (uint8_t)stdMath_Clamp(intBlue, 0.0, 255.0);
@@ -968,13 +1184,13 @@ LABEL_232:
                 }
 #endif
             }
-
-            if ( v91 != rdColormap_pIdentityMap )
+skip_colormap_deref:
+            if ( v91 && v91 != rdColormap_pIdentityMap ) // Added: nullptr check
             {
-                v96 = (uint8_t)(__int64)(v91->tint.x * (double)red_and_alpha);
+                v96 = (uint8_t)(__int64)(v91->tint.x * (flex_d_t)red_and_alpha);
                 red_and_alpha = v96;
-                v100 = (__int64)(v91->tint.y * (double)green);
-                v101 = v91->tint.z * (double)blue;
+                v100 = (__int64)(v91->tint.y * (flex_d_t)green);
+                v101 = v91->tint.z * (flex_d_t)blue;
                 v94 = (uint8_t)v100;
                 green = (uint8_t)v100;
                 blue = (uint8_t)(__int64)v101;
@@ -997,43 +1213,22 @@ LABEL_232:
             }
             if ( v130 )
             {
-                v96 += (__int64)((double)red_and_alpha * red_scalar);
+                v96 += (__int64)((flex_d_t)red_and_alpha * red_scalar);
                 red_and_alpha = v96;
-                v94 += (__int64)((double)green * green_scalar);
+                v94 += (__int64)((flex_d_t)green * green_scalar);
                 green = v94;
-                blue += (__int64)((double)blue * blue_scalar);
+                blue += (__int64)((flex_d_t)blue * blue_scalar);
             }
             if ( rdroid_curColorEffects.fade < 1.0 )
             {
-                v96 = (__int64)((double)red_and_alpha * rdroid_curColorEffects.fade);
-                v94 = (__int64)((double)green * rdroid_curColorEffects.fade);
-                blue = (__int64)((double)blue * rdroid_curColorEffects.fade);
+                v96 = (__int64)((flex_d_t)red_and_alpha * rdroid_curColorEffects.fade);
+                v94 = (__int64)((flex_d_t)green * rdroid_curColorEffects.fade);
+                blue = (__int64)((flex_d_t)blue * rdroid_curColorEffects.fade);
             }
-            if ( v96 < 0 )
-            {
-                v96 = (v96 & ~0xFF) | 0;
-            }
-            else if ( v96 > 255 )
-            {
-                v96 = (v96 & ~0xFF) | 0xff;
-            }
-            if ( v94 < 0 )
-            {
-                v94 = (v94 & ~0xFF) | 0;
-            }
-            else if ( v94 > 255 )
-            {
-                v94 = (v94 & ~0xFF) | 0xff;
-            }
+            v96 = stdMath_ClampInt(v96, 0, 0xFF);
+            v94 = stdMath_ClampInt(v94, 0, 0xFF);
             v103 = blue;
-            if ( blue < 0 )
-            {
-                v103 = 0;
-            }
-            else if ( blue > 255 )
-            {
-                v103 = -1;
-            }
+            v103 = stdMath_ClampInt(v103, 0, 0xFF);
             v104 = v103 | (((uint8_t)v94 | ((alpha_upshifta | (uint8_t)v96) << 8)) << 8);
             rdCache_aHWVertices[rdCache_totalVerts].color = v104;
             rdCache_aHWVertices[rdCache_totalVerts].tu = 0.0;
@@ -1042,7 +1237,7 @@ LABEL_232:
             tmpiter++;
         }
         v108 = active_6c->numVertices;
-#ifdef QOL_IMPROVEMENTS
+#ifdef RDCACHE_RENDER_LINES
         if ( v108 <= 2 )
         {
             v117 = rdCache_totalLines;
@@ -1056,6 +1251,25 @@ LABEL_232:
             rdCache_totalLines++;
         }
         else 
+#endif
+
+#ifdef RDCACHE_RENDER_NGONS
+        if ( active_6c->numVertices >= 3 )
+        {
+            v117 = rdCache_totalSolidTris;
+            rdCache_aHWSolidNGons[v117].vertIdxStart = tri_vert_idx;
+            rdCache_aHWSolidNGons[v117].numVertices = active_6c->numVertices;
+            rdCache_aHWSolidNGons[v117].flags = flags_idk_;
+            rdCache_aHWSolidNGons[v117].texture = 0;
+            rdCache_totalSolidNGons++;
+        }
+#else
+#ifdef QOL_IMPROVEMENTS
+        if (rdCache_totalSolidTris + (active_6c->numVertices-2) >= RDCACHE_MAX_TRIS)
+        {
+            rdCache_DrawRenderList();
+            rdCache_ResetRenderList();
+        }
 #endif
         if ( v108 <= 3 )
         {
@@ -1093,6 +1307,7 @@ LABEL_232:
             }
             rdCache_totalSolidTris += v109;
         }
+#endif
     }
 
     rdCache_DrawRenderList();
@@ -1100,16 +1315,20 @@ LABEL_232:
     return 1;
 }
 
-
-#endif
-
 void rdCache_ResetRenderList()
 {
     std3D_ResetRenderList();
+
+#ifndef RDCACHE_RENDER_NGONS
     rdCache_totalNormalTris = 0;
     rdCache_totalSolidTris = 0;
+#else
+    rdCache_totalNormalNGons = 0;
+    rdCache_totalSolidNGons = 0;
+#endif
+
     rdCache_totalVerts = 0;
-#ifdef QOL_IMPROVEMENTS
+#ifdef RDCACHE_RENDER_LINES
     rdCache_totalLines = 0;
 #endif
 }
@@ -1124,23 +1343,45 @@ void rdCache_DrawRenderList()
             std3D_AddRenderListVertices(rdCache_aHWVertices, rdCache_totalVerts);
         }
         std3D_RenderListVerticesFinish();
+#ifndef TARGET_TWL
+#ifndef RDCACHE_RENDER_NGONS
         if ( rdroid_curZBufferMethod == RD_ZBUFFER_READ_WRITE )
             _qsort(rdCache_aHWNormalTris, rdCache_totalNormalTris, sizeof(rdTri), rdCache_TriCompare);
+#else
+        if ( rdroid_curZBufferMethod == RD_ZBUFFER_READ_WRITE )
+            _qsort(rdCache_aHWNormalNGons, rdCache_totalNormalNGons, sizeof(rdNGon), rdCache_NGonCompare);
+#endif
+#else
+#ifndef RDCACHE_RENDER_NGONS
+        //_qsort(rdCache_aHWNormalTris, rdCache_totalNormalTris, sizeof(rdTri), rdCache_TriCompare);
+#else
+        //_qsort(rdCache_aHWNormalNGons, rdCache_totalNormalNGons, sizeof(rdNGon), rdCache_NGonCompare);
+#endif
+   
+#endif
+
+#ifndef RDCACHE_RENDER_NGONS
         if ( rdCache_totalSolidTris )
             std3D_AddRenderListTris(rdCache_aHWSolidTris, rdCache_totalSolidTris);
         if ( rdCache_totalNormalTris )
             std3D_AddRenderListTris(rdCache_aHWNormalTris, rdCache_totalNormalTris);
-#ifdef QOL_IMPROVEMENTS
-#ifdef SDL2_RENDER
+#else // RDCACHE_RENDER_NGONS
+        if ( rdCache_totalSolidNGons )
+            std3D_AddRenderListNGons(rdCache_aHWSolidNGons, rdCache_totalSolidNGons);
+        if ( rdCache_totalNormalNGons )
+            std3D_AddRenderListNGons(rdCache_aHWNormalNGons, rdCache_totalNormalNGons);
+#endif
+
+#ifdef RDCACHE_RENDER_LINES
         if ( rdCache_totalLines )
             std3D_AddRenderListLines(rdCache_aHWLines, rdCache_totalLines);
-#endif
 #endif
 
         std3D_DrawRenderList();
     }
 }
 
+#ifndef RDCACHE_RENDER_NGONS
 int rdCache_TriCompare(const void* a_, const void* b_)
 {
     const rdTri* a = (const rdTri*)a_;
@@ -1157,6 +1398,24 @@ int rdCache_TriCompare(const void* a_, const void* b_)
     else
         return tex_a->is_16bit != 0 ? 1 : -1;
 }
+#else
+int rdCache_NGonCompare(const void* a_, const void* b_)
+{
+    const rdNGon* a = (const rdNGon*)a_;
+    const rdNGon* b = (const rdNGon*)b_;
+
+    rdDDrawSurface *tex_b;
+    rdDDrawSurface *tex_a;
+
+    tex_b = b->texture;
+    tex_a = a->texture;
+
+    if ( tex_a->is_16bit == tex_b->is_16bit )
+        return tex_a - tex_b;
+    else
+        return tex_a->is_16bit != 0 ? 1 : -1;
+}
+#endif
 
 int rdCache_ProcFaceCompare(rdProcEntry *a, rdProcEntry *b)
 {
@@ -1177,19 +1436,19 @@ int rdCache_AddProcFace(int a1, unsigned int num_vertices, char flags)
     rdProcEntry *procFace; // esi
     int v9; // ecx
     rdVector3 *v10; // edx
-    double y_min_related; // ebx
-    double v12; // st7
-    double y_max_related; // [esp+Ch] [ebp-18h]
-    float v27; // [esp+10h] [ebp-14h]
-    float z_max; // [esp+14h] [ebp-10h]
-    float z_min; // [esp+18h] [ebp-Ch]
-    float y_max; // [esp+1Ch] [ebp-8h]
-    float y_min; // [esp+20h] [ebp-4h]
-    float x_min; // [esp+2Ch] [ebp+8h]
-    float extdataa; // [esp+2Ch] [ebp+8h]
-    float extdatab; // [esp+2Ch] [ebp+8h]
-    float extdatac; // [esp+2Ch] [ebp+8h]
-    float x_max; // [esp+30h] [ebp+Ch]
+    flex_d_t y_min_related; // ebx
+    flex_d_t v12; // st7
+    flex_d_t y_max_related; // [esp+Ch] [ebp-18h]
+    flex_t v27; // [esp+10h] [ebp-14h]
+    flex_t z_max; // [esp+14h] [ebp-10h]
+    flex_t z_min; // [esp+18h] [ebp-Ch]
+    flex_t y_max; // [esp+1Ch] [ebp-8h]
+    flex_t y_min; // [esp+20h] [ebp-4h]
+    flex_t x_min; // [esp+2Ch] [ebp+8h]
+    flex_t extdataa; // [esp+2Ch] [ebp+8h]
+    flex_t extdatab; // [esp+2Ch] [ebp+8h]
+    flex_t extdatac; // [esp+2Ch] [ebp+8h]
+    flex_t x_max; // [esp+30h] [ebp+Ch]
 
     if ( rdCache_numProcFaces >= RDCACHE_MAX_TRIS )
         return 0;
@@ -1226,12 +1485,12 @@ int rdCache_AddProcFace(int a1, unsigned int num_vertices, char flags)
             if ( v10->y < y_min )
             {
                 y_min = v10->y;
-                y_min_related = (float)v9;
+                y_min_related = (flex_t)v9; // FLEXTODO
             }
             if ( v10->y > y_max )
             {
                 y_max = v10->y;
-                y_max_related = (float)v9;
+                y_max_related = (flex_t)v9; // FLEXTODO
             }
             if ( v10->z < z_min )
                 z_min = v10->z;
@@ -1243,13 +1502,13 @@ int rdCache_AddProcFace(int a1, unsigned int num_vertices, char flags)
         while ( v9 < num_vertices );
     }
 
-    procFace->x_min = (int32_t)ceilf(x_min);
-    procFace->x_max = (int32_t)ceilf(x_max);
-    procFace->y_min = (int32_t)ceilf(y_min);
-    procFace->y_max = (int32_t)ceilf(y_max);
+    procFace->x_min = (int32_t)stdMath_Ceil(x_min);
+    procFace->x_max = (int32_t)stdMath_Ceil(x_max);
+    procFace->y_min = (int32_t)stdMath_Ceil(y_min);
+    procFace->y_max = (int32_t)stdMath_Ceil(y_max);
     procFace->z_min = z_min;
     procFace->z_max = z_max;
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && !defined(TARGET_TWL)
     if ( procFace->x_min >= (unsigned int)procFace->x_max )
         return 0;
     if ( procFace->y_min >= (unsigned int)procFace->y_max )

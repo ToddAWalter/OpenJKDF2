@@ -29,14 +29,22 @@ void jkGuiDecision_Startup()
 
 void jkGuiDecision_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
 }
 
 int jkGuiDecision_Show()
 {
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_DECISION]);
+
     jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_DECISION]->palette);
 
     int clicked = jkGuiRend_DisplayAndReturnClicked(&jkGuiDecision_menu);
 
     jkGui_SetModeGame();
+
+    // Added
+    stdBitmap_UnloadData(jkGui_stdBitmaps[JKGUI_BM_BK_DECISION]);
+
     return (clicked == JKGUIDECISION_A);
 }

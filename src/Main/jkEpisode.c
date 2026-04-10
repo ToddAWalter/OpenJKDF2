@@ -183,7 +183,7 @@ LABEL_30:
             {
                 v19 = 0;
                 pHS->fileGets(v17, v29, 64);
-                if ( !pHS->feof(v17) )
+                if ( !pHS->fileEof(v17) )
                 {
                     while ( 1 )
                     {
@@ -201,7 +201,7 @@ LABEL_30:
                         if ( v19 )
                             break;
                         pHS->fileGets(v17, v29, 64);
-                        if ( pHS->feof(v17) )
+                        if ( pHS->fileEof(v17) )
                             goto LABEL_50;
                     }
                     stdString_GetQuotedStringContents(v29, jkEpisode_var4, 128);
@@ -210,7 +210,7 @@ LABEL_30:
                     v16->type = JK_EPISODE_SINGLEPLAYER;
                     v24 = 0;
                     pHS->fileGets(v17, v29, 64);
-                    if ( !pHS->feof(v17) )
+                    if ( !pHS->fileEof(v17) )
                     {
                         while ( 1 )
                         {
@@ -228,7 +228,7 @@ LABEL_30:
                             if ( v24 )
                                 break;
                             pHS->fileGets(v17, v29, 64);
-                            if ( pHS->feof(v17) )
+                            if ( pHS->fileEof(v17) )
                                 goto LABEL_50;
                         }
                         _sscanf(v29, "TYPE %d", &v16->type);
@@ -284,7 +284,7 @@ int jkEpisode_Load(jkEpisodeLoad *a1)
 
     numSeq = 0;
     a1->numSeq = 0;
-    a1->field_8 = 0;
+    a1->currentEpisodeEntryIdx = 0;
 
     // Added: memleak
     if (a1->paEntries) {
@@ -297,7 +297,7 @@ int jkEpisode_Load(jkEpisodeLoad *a1)
         return 0;
     v4 = 0;
     pHS->fileGets(v2, a1a, 128);
-    while ( !pHS->feof(v2) )
+    while ( !pHS->fileEof(v2) )
     {
         if ( !_strchr(a1a, '\n') )
         {
@@ -316,7 +316,7 @@ int jkEpisode_Load(jkEpisodeLoad *a1)
     }
     v7 = 0;
     pHS->fileGets(v2, a1a, 128);
-    if ( pHS->feof(v2) )
+    if ( pHS->fileEof(v2) )
         goto LABEL_30;
     while ( 1 )
     {
@@ -334,7 +334,7 @@ int jkEpisode_Load(jkEpisodeLoad *a1)
         if ( v7 )
             break;
         pHS->fileGets(v2, a1a, 128);
-        if ( pHS->feof(v2) )
+        if ( pHS->fileEof(v2) )
             goto LABEL_30;
     }
     if ( _sscanf(a1a, "TYPE %d", &a1->type) != 1 )
@@ -346,7 +346,7 @@ LABEL_30:
     }
     v11 = 0;
     pHS->fileGets(v2, a1a, 128);
-    if ( pHS->feof(v2) )
+    if ( pHS->fileEof(v2) )
         goto LABEL_47;
     while ( 1 )
     {
@@ -364,7 +364,7 @@ LABEL_30:
         if ( v11 )
             break;
         pHS->fileGets(v2, a1a, 128);
-        if ( pHS->feof(v2) )
+        if ( pHS->fileEof(v2) )
             goto LABEL_47;
     }
     if ( _sscanf(a1a, "SEQ %d", &numSeq) != 1 )
@@ -391,7 +391,7 @@ LABEL_47:
         v18 = 0;
         v19 = &a1->paEntries[v16];
         pHS->fileGets(v2, a1a, 128);
-        if ( pHS->feof(v2) )
+        if ( pHS->fileEof(v2) )
         {
 LABEL_67:
             v17 = 0;
@@ -414,7 +414,7 @@ LABEL_67:
                 if ( v18 )
                     break;
                 pHS->fileGets(v2, a1a, 128);
-                if ( pHS->feof(v2) )
+                if ( pHS->fileEof(v2) )
                     goto LABEL_67;
             }
             v17 = 1;
@@ -471,7 +471,7 @@ LABEL_67:
         a1a[0] = 0;
         v22 = 0;
         pHS->fileGets(v2, a1a, 128);
-        while ( !pHS->feof(v2) )
+        while ( !pHS->fileEof(v2) )
         {
             if ( !_strchr(a1a, '\n') )
             {
@@ -498,12 +498,12 @@ LABEL_67:
     return a1->paEntries != 0;
 }
 
-jkEpisodeEntry* jkEpisode_idk1(jkEpisodeLoad *a1)
+jkEpisodeEntry* jkEpisode_GetCurrentEpisodeEntry(jkEpisodeLoad *pLoad)
 {
-    return &a1->paEntries[a1->field_8];
+    return &pLoad->paEntries[pLoad->currentEpisodeEntryIdx];
 }
 
-jkEpisodeEntry* jkEpisode_idk2(jkEpisodeLoad *pLoad, int bIsAPath)
+jkEpisodeEntry* jkEpisode_GetNextEntryInDecisionPath(jkEpisodeLoad *pLoad, int bIsAPath)
 {
     int v4; // edi
     int v5; // edx
@@ -511,16 +511,16 @@ jkEpisodeEntry* jkEpisode_idk2(jkEpisodeLoad *pLoad, int bIsAPath)
     jkEpisodeEntry *v7; // ecx
 
     if ( bIsAPath )
-        v4 = pLoad->paEntries[pLoad->field_8].gotoA;
+        v4 = pLoad->paEntries[pLoad->currentEpisodeEntryIdx].gotoA;
     else
-        v4 = pLoad->paEntries[pLoad->field_8].gotoB;
+        v4 = pLoad->paEntries[pLoad->currentEpisodeEntryIdx].gotoB;
     if ( v4 == -1 )
         return 0;
     v5 = pLoad->numSeq;
     v6 = 0;
     if ( v5 <= 0 )
 LABEL_9:
-        Windows_GameErrorMsgbox("ERR_BAD_EPISODE_FILE %d %d", pLoad->field_8, v4);
+        Windows_GameErrorMsgbox("ERR_BAD_EPISODE_FILE %d %d", pLoad->currentEpisodeEntryIdx, v4);
     v7 = pLoad->paEntries;
     while ( v7->lineNum != v4 )
     {
@@ -529,7 +529,7 @@ LABEL_9:
         if ( v6 >= v5 )
             goto LABEL_9;
     }
-    pLoad->field_8 = v6;
+    pLoad->currentEpisodeEntryIdx = v6;
     return &pLoad->paEntries[v6];
 }
 
@@ -537,7 +537,7 @@ int jkEpisode_EndLevel(jkEpisodeLoad *pEpisode, int levelNum)
 {
     int v2; // eax
     int v3; // edx
-    int *i; // ecx
+    int32_t *i; // ecx
 
     v2 = 0;
     v3 = pEpisode->numSeq;
@@ -548,7 +548,7 @@ int jkEpisode_EndLevel(jkEpisodeLoad *pEpisode, int levelNum)
         if ( ++v2 >= v3 )
             return 0;
     }
-    pEpisode->field_8 = v2;
+    pEpisode->currentEpisodeEntryIdx = v2;
     return 1;
 }
 
@@ -577,25 +577,25 @@ int jkEpisode_UpdateExtra(sithThing *pPlayerThing)
         uint32_t bubbleType;
         int local_14;
         int bHasBubble;
-        float bubbleRadSqrd;
+        flex_t bubbleRadSqrd;
 
         sithThing* pBubbleThing = NULL;
         bHasBubble = jkEpisode_GetBubbleInfo(pPlayerThing,&bubbleType,&pBubbleThing,&bubbleRadSqrd);
         iVar4 = 0;
         if (bHasBubble == 0) {
             if (playerThings[playerThingIdx].jkmUnk4 != 0) {
-                sithCog_SendMessageFromThingEx(pPlayerThing, NULL, SITH_MESSAGE_EXITBUBBLE,(float)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
+                sithCog_SendMessageFromThingEx(pPlayerThing, NULL, SITH_MESSAGE_EXITBUBBLE,(flex_t)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
 
                 for (int binIdx = 0; binIdx < SITHBIN_NUMBINS; binIdx++) 
                 {
                     if (sithInventory_GetAvailable(pPlayerThing, binIdx) && (sithInventory_aDescriptors[binIdx].flags & 8) && sithInventory_aDescriptors[binIdx].cog) {
-                        sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_EXITBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, 0,-1,0,(float)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
+                        sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_EXITBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, 0,-1,0,(flex_t)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
                     }
                 }
             }
         }
         else if (playerThings[playerThingIdx].jkmUnk4 == 0) {
-            sithCog_SendMessageFromThingEx(pPlayerThing,pBubbleThing,SITH_MESSAGE_ENTERBUBBLE,(float)bubbleType,0.0,0.0,0.0);
+            sithCog_SendMessageFromThingEx(pPlayerThing,pBubbleThing,SITH_MESSAGE_ENTERBUBBLE,(flex_t)bubbleType,0.0,0.0,0.0);
             if (!pBubbleThing) {
                 uVar5 = 0xffffffff;
                 iVar4 = 0;
@@ -608,23 +608,23 @@ int jkEpisode_UpdateExtra(sithThing *pPlayerThing)
             for (int binIdx = 0; binIdx < SITHBIN_NUMBINS; binIdx++) 
             {
                 if (sithInventory_GetAvailable(pPlayerThing, binIdx) && (sithInventory_aDescriptors[binIdx].flags & 8) && sithInventory_aDescriptors[binIdx].cog) {
-                    sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_ENTERBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, iVar4,uVar5,0,(float)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
+                    sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_ENTERBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, iVar4,uVar5,0,(flex_t)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
                 }
             }
         }
         else {
-            if ((float)playerThings[playerThingIdx].jkmUnk5 != (float)bubbleType) 
+            if ((flex_t)playerThings[playerThingIdx].jkmUnk5 != (flex_t)bubbleType) 
             {
-                sithCog_SendMessageFromThingEx(pPlayerThing, NULL, SITH_MESSAGE_EXITBUBBLE,(float)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
+                sithCog_SendMessageFromThingEx(pPlayerThing, NULL, SITH_MESSAGE_EXITBUBBLE,(flex_t)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
                 
                 for (int binIdx = 0; binIdx < SITHBIN_NUMBINS; binIdx++) 
                 {
                     if (sithInventory_GetAvailable(pPlayerThing, binIdx) && (sithInventory_aDescriptors[binIdx].flags & 8) && sithInventory_aDescriptors[binIdx].cog) {
-                        sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_EXITBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, 0,-1,0,(float)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
+                        sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_EXITBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, 0,-1,0,(flex_t)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
                     }
                 }
 
-                sithCog_SendMessageFromThingEx(pPlayerThing,pBubbleThing,SITH_MESSAGE_ENTERBUBBLE,(float)bubbleType,0.0,0.0,0.0);
+                sithCog_SendMessageFromThingEx(pPlayerThing,pBubbleThing,SITH_MESSAGE_ENTERBUBBLE,(flex_t)bubbleType,0.0,0.0,0.0);
                 
                 if (!pBubbleThing) {
                     uVar5 = 0xffffffff;
@@ -638,7 +638,7 @@ int jkEpisode_UpdateExtra(sithThing *pPlayerThing)
                 for (int binIdx = 0; binIdx < SITHBIN_NUMBINS; binIdx++) 
                 {
                     if (sithInventory_GetAvailable(pPlayerThing, binIdx) && (sithInventory_aDescriptors[binIdx].flags & 8) && sithInventory_aDescriptors[binIdx].cog) {
-                        sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_ENTERBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, iVar4,uVar5,0,(float)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
+                        sithCog_SendMessageEx(sithInventory_aDescriptors[binIdx].cog, SITH_MESSAGE_ENTERBUBBLE, SENDERTYPE_THING, pPlayerThing->thingIdx, iVar4,uVar5,0,(flex_t)playerThings[playerThingIdx].jkmUnk5,0.0,0.0,0.0);
                     }
                 }
             }
@@ -664,7 +664,7 @@ int jkEpisode_idk4(jkEpisodeLoad *pEpisodeLoad, char *pEpisodeName)
         if ( ++v2 >= pEpisodeLoad->numSeq )
             return 0;
     }
-    pEpisodeLoad->field_8 = v2;
+    pEpisodeLoad->currentEpisodeEntryIdx = v2;
     return 1;
 }
 
@@ -706,7 +706,7 @@ LABEL_7:
 }
 
 // MOTS added
-void jkEpisode_CreateBubble(sithThing *pThing,float radius,uint32_t type)
+void jkEpisode_CreateBubble(sithThing *pThing,flex_t radius,uint32_t type)
 {
     int iVar1;
     jkBubbleInfo *pjVar2;
@@ -752,11 +752,11 @@ void jkEpisode_DestroyBubble(sithThing *pThing)
 }
 
 // MOTS added
-int jkEpisode_GetBubbleInfo(sithThing *pThing,uint32_t *pTypeOut,sithThing **pThingOut,float *pOut)
+int jkEpisode_GetBubbleInfo(sithThing *pThing,uint32_t *pTypeOut,sithThing **pThingOut,flex_t *pOut)
 {
     sithThing *psVar1;
-    float fVar3;
-    float fVar4;
+    flex_t fVar3;
+    flex_t fVar4;
     jkBubbleInfo *pjVar7;
     int iVar8;
     jkBubbleInfo *pjVar9;

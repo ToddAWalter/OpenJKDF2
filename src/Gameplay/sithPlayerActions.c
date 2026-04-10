@@ -24,7 +24,7 @@ void sithPlayerActions_Activate(sithThing *thing)
     int v5; // eax
     sithCollisionSearchEntry *searchResult; // eax
     sithThing *v7; // edx
-    float a6; // [esp+0h] [ebp-58h]
+    flex_t a6; // [esp+0h] [ebp-58h]
     rdVector3 thingPos; // [esp+1Ch] [ebp-3Ch] BYREF
     rdMatrix34 out; // [esp+28h] [ebp-30h] BYREF
 
@@ -45,7 +45,7 @@ void sithPlayerActions_Activate(sithThing *thing)
             if ( sithComm_multiplayerFlags && v5 >= 0 )
                 sithDSSThing_SendPlayKeyMode(thing, SITH_ANIM_ACTIVATE, thing->rdthing.puppet->tracks[v5].field_130, -1, 255);
             a6 = thing->moveSize - -0.1;
-            sithCollision_SearchRadiusForThings(v4, thing, &thingPos, &out.lvec, a6, 0.025, SITH_THING_ACTOR);
+            sithCollision_SearchRadiusForThings(v4, thing, &thingPos, &out.lvec, a6, 0.025, /*SITH_THING_ACTOR*/RAYCAST_2);
             for ( searchResult = sithCollision_NextSearchResult(); searchResult; searchResult = sithCollision_NextSearchResult() )
             {
                 if ( (searchResult->hitType & SITHCOLLISION_WORLD) != 0 )
@@ -65,8 +65,10 @@ void sithPlayerActions_Activate(sithThing *thing)
                 {
                     v7 = searchResult->receiver;
 #ifdef DEBUG_QOL_CHEATS
+#ifdef SITH_DEBUG_STRUCT_NAMES
                     if (v7 && thing == sithPlayer_pLocalPlayerThing)
                         jk_printf("OpenJKDF2: Debug thing %s\n", v7->template_name);
+#endif
 #endif
                     if ( v7->type != SITH_THING_ITEM && v7->type != SITH_THING_WEAPON && (v7->thingflags & SITH_TF_CAPTURED) != 0 )
                     {
@@ -81,11 +83,10 @@ void sithPlayerActions_Activate(sithThing *thing)
 }
 
 // MoTS altered
-void sithPlayerActions_JumpWithVel(sithThing *thing, float vel)
+void sithPlayerActions_JumpWithVel(sithThing *thing, flex_t vel)
 {
-    double final_vel;
-    int isAttached; // zf
-    sithSurface *attachedSurface; // eax
+    flex_d_t final_vel;
+    int isAttachedAndIsSurface; // zf
     int v12; // eax
     int jumpSound; // edi
     int v14; // eax
@@ -97,21 +98,22 @@ void sithPlayerActions_JumpWithVel(sithThing *thing, float vel)
         final_vel = thing->actorParams.jumpSpeed * vel;
         if ( (thing->physicsParams.physflags & SITH_PF_CROUCHING) != 0 )
             final_vel = final_vel * 0.7;
-        if ( (thing->physicsParams.physflags & SITH_PF_MIDAIR) != 0 )
+        if ( (thing->physicsParams.physflags & SITH_PF_WATERSURFACE) != 0 )
         {
             rdVector_MultAcc3(&thing->physicsParams.vel, &rdroid_zVector3, final_vel);
-            thing->physicsParams.physflags &= ~SITH_PF_MIDAIR;
+            thing->physicsParams.physflags &= ~SITH_PF_WATERSURFACE;
         }
         else
         {
             if ( !thing->attach_flags )
                 return;
-            isAttached = (thing->attach_flags & (SITH_ATTACH_THING|SITH_ATTACH_THINGSURFACE)) == 0;
-            attachedSurface = thing->attachedSurface;
+            isAttachedAndIsSurface = (thing->attach_flags & (SITH_ATTACH_THING|SITH_ATTACH_THINGSURFACE)) == 0;
+            
             rdVector_MultAcc3(&thing->physicsParams.vel, &rdroid_zVector3, final_vel);
-            if ( isAttached )
+            if ( isAttachedAndIsSurface )
             {
-                v14 = attachedSurface->surfaceFlags;
+                sithSurface* pAttachedSurface = thing->attachedSurface;
+                v14 = pAttachedSurface->surfaceFlags;
                 if ( (v14 & (SITH_SURFACE_VERYDEEPWATER|SITH_SURFACE_EARTH|SITH_SURFACE_PUDDLE|SITH_SURFACE_WATER|SITH_SURFACE_METAL)) != 0 )
                 {
                     if ( (v14 & SITH_SURFACE_METAL) != 0 )
@@ -138,8 +140,9 @@ void sithPlayerActions_JumpWithVel(sithThing *thing, float vel)
             }
             else
             {
-                v12 = attachedSurface->field_0;
-                if ( (v12 & SITH_TF_METAL) != 0 )
+                sithThing* pAttachedThing = thing->attachedThing;
+                v12 = pAttachedThing->thingflags;
+                if ( (v12 & SITH_TF_METAL) != 0 ) // wtf??
                     jumpSound = SITH_SC_JUMPMETAL;
                 else
                     jumpSound = (SITH_TF_EARTH & v12) != 0 ? SITH_SC_JUMPEARTH : SITH_SC_JUMP;
@@ -156,7 +159,7 @@ void sithPlayerActions_JumpWithVel(sithThing *thing, float vel)
 
 void sithPlayerActions_WarpToCheckpoint(sithThing *thing, int idx)
 {
-    if ( idx < (unsigned int)jkPlayer_maxPlayers )
+    if (idx < (unsigned int)jkPlayer_maxPlayers && idx >= 0) // Added: >=0 check
     {
         if ( (jkPlayer_playerInfos[idx].flags & 2) != 0 )
         {
@@ -181,7 +184,7 @@ sithThing* sithPlayerActions_SpawnThingAtLookAt(sithThing *pPlayerThing, sithThi
     int v5; // eax
     sithCollisionSearchEntry *searchResult; // eax
     sithThing *v7; // edx
-    float a6; // [esp+0h] [ebp-58h]
+    flex_t a6; // [esp+0h] [ebp-58h]
     rdVector3 thingPos; // [esp+1Ch] [ebp-3Ch] BYREF
     rdMatrix34 out; // [esp+28h] [ebp-30h] BYREF
 

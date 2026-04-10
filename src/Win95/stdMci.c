@@ -4,14 +4,18 @@
 #include "stdPlatform.h"
 #include "jk.h"
 
-#ifdef LINUX
+#ifdef TARGET_ANDROID
+#include "Main/InstallHelper.h"
+#endif
+
+#ifdef FS_POSIX
 #include "external/fcaseopen/fcaseopen.h"
 #endif
 
 // Added
 int stdMci_bIsGOG = 1;
 
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && defined(WIN32)
 
 int stdMci_Startup()
 {
@@ -83,7 +87,7 @@ int stdMci_Play(uint8_t trackFrom, uint8_t trackTo)
     return 0;
 }
 
-void stdMci_SetVolume(float vol)
+void stdMci_SetVolume(flex_t vol)
 {
     if (!stdMci_bInitted)
         return;
@@ -114,7 +118,7 @@ int stdMci_CheckStatus()
     return statusParms.dwReturn != MCI_MODE_STOP;
 }
 
-double stdMci_GetTrackLength(int track)
+flex_d_t stdMci_GetTrackLength(int track)
 {
     MCI_STATUS_PARMS statusParms;
 
@@ -127,11 +131,11 @@ double stdMci_GetTrackLength(int track)
     statusParms.dwTrack = track;
     jk_mciSendCommandA(stdMci_mciId, MCI_STATUS, 0x110u, &statusParms);
 
-    return (double)((statusParms.dwReturn >> 16) & 0xFF) + (double)((statusParms.dwReturn >> 8) & 0xFF) * 60.0;
+    return (flex_d_t)((statusParms.dwReturn >> 16) & 0xFF) + (flex_d_t)((statusParms.dwReturn >> 8) & 0xFF) * 60.0;
 }
 
 #else // LINUX
-#ifdef STDSOUND_NULL
+#if defined(STDSOUND_NULL) || defined(STDSOUND_MAXMOD)
 
 int stdMci_trackFrom;
 int stdMci_trackTo;
@@ -186,7 +190,7 @@ int stdMci_Play(uint8_t trackFrom, uint8_t trackTo)
     return 1;
 }
 
-void stdMci_SetVolume(float vol)
+void stdMci_SetVolume(flex_t vol)
 {
 }
 
@@ -204,12 +208,12 @@ int stdMci_CheckStatus()
     return stdMci_music;
 }
 
-double stdMci_GetTrackLength(int track)
+flex_d_t stdMci_GetTrackLength(int track)
 {
     return 0.0;
 }
 
-#else // !STDSOUND_NULL
+#elif defined(SDL2_RENDER) // !STDSOUND_NULL
 
 #include <SDL_mixer.h>
 
@@ -226,10 +230,12 @@ int stdMci_Startup()
 
     stdMci_bInitted = 1;
     
-    if (Mix_OpenAudio(48000, AUDIO_S16SYS, 2, 1024) < 0)
-	    return 1;
+    if (Mix_OpenAudio(48000, AUDIO_S16SYS, 2, 1024) < 0) {
+        stdPlatform_Printf("stdMci: Failed Mix_OpenAudio? %s\n", Mix_GetError());
+        return 1;
+    }
 
-	Mix_AllocateChannels(2);
+    Mix_AllocateChannels(2);
 
     // Added
     stdMci_bIsGOG = 1;
@@ -254,8 +260,8 @@ int stdMci_TryPlay(const char* fpath) {
     char tmp[256];
     strncpy(tmp, fpath, 255);
 
-#ifdef LINUX
-    char *r = malloc(strlen(tmp) + 16);
+#ifdef FS_POSIX
+    char *r = (char*)malloc(strlen(tmp) + 16);
     if (casepath(tmp, r))
     {
         strcpy(tmp, r);
@@ -263,7 +269,18 @@ int stdMci_TryPlay(const char* fpath) {
     free(r);
 #endif
 
-    stdMci_music = Mix_LoadMUS(tmp); 
+#ifdef TARGET_ANDROID
+    char tmp2[512];
+    getcwd(tmp2, sizeof(tmp2));
+    //if (tmp[0] != '.') {
+        strcat(tmp2, "/");
+    //}
+    strcat(tmp2, tmp);
+    stdMci_music = Mix_LoadMUS(tmp2); 
+#else
+    stdMci_music = Mix_LoadMUS(tmp);
+#endif
+    
     if (!stdMci_music) {
         //printf("INFO: Failed to play music `%s', trying alternate location...\n", tmp);
         stdPlatform_Printf("stdMci: Error in Mix_LoadMUS, %s\n", Mix_GetError());
@@ -394,10 +411,10 @@ int stdMci_Play(uint8_t trackFrom, uint8_t trackTo)
     return 1;
 }
 
-void stdMci_SetVolume(float vol)
+void stdMci_SetVolume(flex_t vol)
 {
     stdPlatform_Printf("stdMci: Set vol %f\n", vol);
-    uint8_t volQuantized = (uint16_t)(vol * (double)MIX_MAX_VOLUME);
+    uint8_t volQuantized = (uint16_t)(vol * (flex_d_t)MIX_MAX_VOLUME);
     Mix_VolumeMusic(volQuantized);
 }
 
@@ -417,7 +434,7 @@ int stdMci_CheckStatus()
     return (stdMci_music != NULL);
 }
 
-double stdMci_GetTrackLength(int track)
+flex_d_t stdMci_GetTrackLength(int track)
 {
     return 0.0;
 }

@@ -14,12 +14,14 @@
 #include "Gui/jkGUITitle.h"
 #include "World/jkPlayer.h"
 #include "World/sithWorld.h"
+#include "Devices/sithControl.h"
+#include "Platform/stdControl.h"
 #include "Cog/jkCog.h"
 #include "stdPlatform.h"
 
 #include "jk.h"
 
-static int jkGuiSaveLoad_listIdk[2] = {0xd, 0xe};
+static int32_t jkGuiSaveLoad_listIdk[2] = {0xd, 0xe};
 
 static jkGuiElement jkGuiSaveLoad_aElements[15] = {
     {ELEMENT_TEXT, 0, 5, 0, 3, {0x32, 0x32, 0x1F4, 0x1E}, 1, 0, 0, 0, 0, 0, {0}, 0},
@@ -34,14 +36,14 @@ static jkGuiElement jkGuiSaveLoad_aElements[15] = {
     {ELEMENT_TEXT, 0, 0, jkGuiSaveLoad_wtextHealth, 0x0, {0x190, 0x14A, 0x0C8, 0x14}, 1, 0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_TEXT, 0, 0, jkGuiSaveLoad_wtextShields, 0, {0x190, 0x168, 0x0C8, 0x14}, 1, 0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_TEXTBUTTON, 1, 2, "GUI_OK", 3, {0x1B8, 0x1AE, 0x0C8, 0x28}, 1, 0, 0, 0, 0, 0, {0}, 0},
-    {ELEMENT_TEXTBUTTON, 0xFFFFFFFF, 0x2, "GUI_CANCEL", 3, {0, 0x1AE, 0x0C8, 0x28}, 1, 0, 0, 0, 0, 0, {0}, 0},
+    {ELEMENT_TEXTBUTTON, -1, 0x2, "GUI_CANCEL", 3, {0, 0x1AE, 0x0C8, 0x28}, 1, 0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_TEXTBUTTON, 0, 2, "GUI_SLDELETE", 3, {0xE6, 0x1AE, 0x0B4, 0x28}, 1, 0, 0, 0, jkGuiSaveLoad_DeleteOnClick, 0, {0}, 0},
     {ELEMENT_END, 0, 0, 0, 0, {0}, 0, 0, 0, 0, 0, 0, {0}, 0},
 };
 
-static jkGuiMenu jkGuiSaveLoad_menu = {jkGuiSaveLoad_aElements, 0xFFFFFFFF, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
+jkGuiMenu jkGuiSaveLoad_menu = {jkGuiSaveLoad_aElements, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 
-int jkGuiSaveLoad_ListClick(jkGuiElement *element, jkGuiMenu *menu, int mouseX, int mouseY, BOOL redraw)
+int jkGuiSaveLoad_ListClick(jkGuiElement *element, jkGuiMenu *menu, int32_t mouseX, int32_t mouseY, BOOL redraw)
 {
     jkGuiRend_ClickSound(element, menu, mouseX, mouseY, redraw);
     if ( redraw )
@@ -53,20 +55,20 @@ int jkGuiSaveLoad_ListClick(jkGuiElement *element, jkGuiMenu *menu, int mouseX, 
 void jkGuiSaveLoad_PopulateInfo(int bRedraw)
 {
     char *v1; // ebx
-    float shieldsAmt; // edx
+    flex_t shieldsAmt; // edx
     jkGuiSaveLoad_Entry *entry; // esi
     wchar_t *v4; // eax
-    float playerHealth; // eax
-    float playerMaxHealth; // ecx
+    flex_t playerHealth; // eax
+    flex_t playerMaxHealth; // ecx
     jkGuiSaveLoad_Entry* v7; // eax
     int v8; // esi
     jkEpisode *episodeIter; // edi
     wchar_t *v10; // eax
     wchar_t *v11; // eax
     wchar_t *saveName; // [esp+10h] [ebp-10h]
-    float playerMaxHealth_; // [esp+14h] [ebp-Ch]
-    float playerHealth_; // [esp+18h] [ebp-8h]
-    float shieldsAmt_; // [esp+1Ch] [ebp-4h]
+    flex_t playerMaxHealth_; // [esp+14h] [ebp-Ch]
+    flex_t playerHealth_; // [esp+18h] [ebp-8h]
+    flex_t shieldsAmt_; // [esp+1Ch] [ebp-4h]
 
     if ( jkGuiSaveLoad_bIsSaveMenu && jkGuiSaveLoad_menu.focusedElement == &jkGuiSaveLoad_aElements[2] )
     {
@@ -146,7 +148,7 @@ LABEL_15:
     }
 }
 
-int jkGuiSaveLoad_DeleteOnClick(jkGuiElement *element, jkGuiMenu *menu, int mouseX, int mouseY, int bRedraw)
+int jkGuiSaveLoad_DeleteOnClick(jkGuiElement *element, jkGuiMenu *menu, int32_t mouseX, int32_t mouseY, int bRedraw)
 {
     jkGuiSaveLoad_Entry *v2; // esi
     wchar_t *wstr_del; // eax
@@ -194,7 +196,7 @@ void jkGuiSaveLoad_PopulateList()
 {
     stdFileSearch *v0; // eax
     stdFileSearch *v1; // edi
-    int v2; // esi
+    stdFile_t v2; // esi
     wchar_t *v3; // eax
     wchar_t *v4; // ebx
     jkGuiSaveLoad_Entry *v6; // edi
@@ -216,10 +218,10 @@ void jkGuiSaveLoad_PopulateList()
             if ( __strnicmp("_JKAUTO_", a2.fpath, 8u) )
             {
                 sithGamesave_GetProfilePath(path, 128, a2.fpath);
-                v2 = pHS->fileOpen(path, "rb");
+                v2 = pLowLevelHS->fileOpen(path, "rb"); // Added: pHS -> pLowLevelHS
                 if ( v2 )
                 {
-                    if ( pHS->fileRead(v2, &saveHeader, sizeof(sithGamesave_Header)) == sizeof(sithGamesave_Header) && (saveHeader.version == 6 || saveHeader.version == 0x7D6) ) // MOTS altered: 6 -> 0x7D6
+                    if ( pLowLevelHS->fileRead(v2, &saveHeader, sizeof(sithGamesave_Header)) == sizeof(sithGamesave_Header) && (saveHeader.version == 6 || saveHeader.version == 0x7D6) ) // MOTS altered: 6 -> 0x7D6 // Added: pHS -> pLowLevelHS
                     {
                         v3 = __wcschr(saveHeader.saveName, U'~');
                         v4 = v3;
@@ -228,15 +230,14 @@ void jkGuiSaveLoad_PopulateList()
                             *v3 = 0;
                             v6 = (jkGuiSaveLoad_Entry *)pHS->alloc(sizeof(jkGuiSaveLoad_Entry));
                             _memcpy(v6, &saveHeader, sizeof(sithGamesave_Header));
-                            _strncpy(v6->fpath, a2.fpath, 0x7Fu);
-                            v6->fpath[127] = 0;
+                            stdString_SafeStrCopy(v6->fpath, a2.fpath, 128);
                             _strtolower(v6->fpath);
                             jkGuiRend_DarrayReallocStr(&jkGuiSaveLoad_DarrayEntries, v4 + 1, (intptr_t)v6);
                             v1 = v7;
                             ++jkGuiSaveLoad_numEntries;
                         }
                     }
-                    pHS->fileClose(v2);
+                    pLowLevelHS->fileClose(v2); // Added: pHS -> pLowLevelHS
                 }
             }
         }
@@ -267,7 +268,7 @@ int jkGuiSaveLoad_Show(int bIsSave)
 {
     const char *v1; // eax
     int v2; // eax
-    signed int v3; // edi
+    int32_t v3; // edi
     wchar_t *v4; // eax
     int v5; // eax
     jkGuiSaveLoad_Entry *v6; // esi
@@ -287,10 +288,10 @@ int jkGuiSaveLoad_Show(int bIsSave)
     wchar_t *v22; // eax
     int j; // esi
     jkGuiSaveLoad_Entry *v24; // eax
-    signed int result; // eax
+    int32_t result; // eax
     wchar_t *v26; // [esp-4h] [ebp-298h]
     wchar_t *v27; // [esp-4h] [ebp-298h]
-    wchar_t *v28; // [esp-4h] [ebp-298h]
+    const wchar_t *v28; // [esp-4h] [ebp-298h]
     int v29; // [esp+10h] [ebp-284h] BYREF
     char v30[128]; // [esp+14h] [ebp-280h] BYREF
     wchar_t v31[256]; // [esp+94h] [ebp-200h] BYREF
@@ -441,10 +442,14 @@ LABEL_46:
     jkGuiRend_DarrayFree(&jkGuiSaveLoad_DarrayEntries);
     result = v3;
     jkGuiSaveLoad_numEntries = 0;
+
+    // Added: Make sure onscreen keyboard is down
+    stdControl_HideSystemKeyboard();
+
     return result;
 }
 
-int jkGuiSaveLoad_PopulateInfoInit(jkGuiElement *a1, jkGuiMenu *a2, int a3, int a4, BOOL redraw)
+int jkGuiSaveLoad_PopulateInfoInit(jkGuiElement *a1, jkGuiMenu *a2, int32_t a3, int32_t a4, BOOL redraw)
 {
     jkGuiSaveLoad_PopulateInfo(1);
     return 0;
@@ -457,5 +462,5 @@ void jkGuiSaveLoad_Startup()
 
 void jkGuiSaveLoad_Shutdown()
 {
-    ;
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
 }

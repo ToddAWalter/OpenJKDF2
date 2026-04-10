@@ -17,6 +17,7 @@
 #include "World/sithWeapon.h"
 #include "World/sithTrackThing.h"
 #include "Devices/sithComm.h"
+#include "stdPlatform.h"
 #include "jk.h"
 
 void sithDSSThing_SendPos(sithThing *pThing, int sendto_id, int bSync)
@@ -68,7 +69,7 @@ int sithDSSThing_ProcessPos(sithCogMsg *msg)
     int thing_id = NETMSG_POPS32();
 
     sithThing* pThing = sithThing_GetById(thing_id);
-    //printf("sithDSSThing_ProcessPos %x %x\n", thing_id, pThing->thingtype);
+    //printf("sithDSSThing_ProcessPos %x %x\n", thing_id, pThing->controlType);
     if ( !pThing || pThing->type == SITH_THING_FREE || !pThing->sector )
         return 0;
     uint16_t attach_flags = NETMSG_POPU16();
@@ -121,7 +122,23 @@ void sithDSSThing_SendSyncThing(sithThing *pThing, int sendto_id, int mpFlags)
 {
     NETMSG_START;
 
-    if (!pThing || !pThing->type || !pThing->sector || !sithThing_GetIdxFromThing(pThing) || MOTS_ONLY_COND(pThing->physicsParams.physflags & SITH_PF_4000000))
+#if 0
+    if (!pThing) {
+        jk_printf("OpenJKDF2 WARN: Thing NULL, not synced.\n");
+        return;
+    }
+    if (!pThing->type) {
+        jk_printf("OpenJKDF2 WARN: Thing type 0, not synced.\n");
+    }
+    if (!pThing->sector) {
+        jk_printf("OpenJKDF2 WARN: Thing sector NULL, not synced.\n");
+    }
+    if (!sithThing_GetIdxFromThing(pThing)) {
+        jk_printf("OpenJKDF2 WARN: Thing not syncable?\n");
+    }
+#endif
+
+    if (!pThing || !pThing->type || !pThing->sector || !sithThing_GetIdxFromThing(pThing) || MOTS_ONLY_FLAG(pThing->physicsParams.physflags & SITH_PF_4000000))
         return;
 
     NETMSG_PUSHS32(pThing->thing_id);
@@ -151,7 +168,7 @@ void sithDSSThing_SendSyncThing(sithThing *pThing, int sendto_id, int mpFlags)
             break;
         case SITH_THING_ITEM:
             NETMSG_PUSHS32(pThing->itemParams.typeflags);
-            if (pThing->itemParams.typeflags & ITEMSTATE_AVAILABLE)
+            if (pThing->itemParams.typeflags & SITH_ITEM_BACKPACK)
             {
                 NETMSG_PUSHS16(pThing->itemParams.numBins);
                 for (int i = 0; i < pThing->itemParams.numBins; i++)
@@ -177,16 +194,22 @@ int sithDSSThing_ProcessSyncThing(sithCogMsg *msg)
 {
     NETMSG_IN_START(msg);
 
-    sithThing* pThing = sithThing_GetById(NETMSG_POPS32());
+    int id = NETMSG_POPS32();
+    sithThing* pThing = sithThing_GetById(id);
     if ( !pThing )
         return 0;
 
+    // 1 for multiplayer hackfix:
 #if 0
     // Added: why is this needed???
-    if (!pThing->thingtype && pThing->type)
-        pThing->thingtype = pThing->type;
-    if (pThing->thingtype && !pThing->type)
-        pThing->type = pThing->thingtype;
+    if (!pThing->controlType && pThing->type) {
+        jk_printf("OpenJKDF2 WARN: id %08x pThing->controlType 0, using pThing->type %u\n", id, pThing->type);
+        pThing->controlType = pThing->type;
+    }
+    if (pThing->controlType && !pThing->type) {
+        jk_printf("OpenJKDF2 WARN: id %08x pThing->type 0, using pThing->controlType %u\n", id, pThing->controlType);
+        pThing->type = pThing->controlType;
+    }
 #endif
 
     if ( pThing->type == SITH_THING_FREE )
@@ -213,12 +236,18 @@ int sithDSSThing_ProcessSyncThing(sithCogMsg *msg)
         thingflags &= ~SITH_TF_INVULN;
 
     // MoTS added
-    /*
-    if ((((thing->thingflags & SITH_TF_DISABLED) != 0) && ((uVar8 & SITH_TF_DISABLED) == 0)) &&
-       (((thing->type == 5 && (((sithNet_isMulti != 0 && (sithNet_isServer == 0)) && (*(int *)&(thing->typeParams).field_0x10 != 0)))) && ((*(byte *)&thing->typeParams & 1) != 0)))) {
-        sithCog_SendMessageFromThing(thing,thing,SITH_MESSAGE_RESPAWN);
+    if (Main_bMotsCompat)
+    {
+        if ((pThing->thingflags & SITH_TF_DISABLED)
+            && !(thingflags & SITH_TF_DISABLED) 
+            && pThing->type == SITH_THING_ITEM 
+            && sithNet_isMulti 
+            && !sithNet_isServer
+            && pThing->itemParams.respawnFactor != 0 
+            && pThing->itemParams.typeflags & SITH_ITEM_RESPAWN_MP) {
+            sithCog_SendMessageFromThing(pThing, pThing, SITH_MESSAGE_RESPAWN);
+        }
     }
-    */
 
     sithAnimclass* pAnimclass = pThing->animclass;
     pThing->thingflags = thingflags;
@@ -243,7 +272,7 @@ int sithDSSThing_ProcessSyncThing(sithCogMsg *msg)
             break;
         case SITH_THING_ITEM:
             pThing->itemParams.typeflags = NETMSG_POPS32();
-            if (pThing->itemParams.typeflags & ITEMSTATE_AVAILABLE)
+            if (pThing->itemParams.typeflags & SITH_ITEM_BACKPACK)
             {
                 pThing->itemParams.numBins = NETMSG_POPS16();
                 for (int i = 0; i < pThing->itemParams.numBins; i++)
@@ -263,7 +292,7 @@ int sithDSSThing_ProcessSyncThing(sithCogMsg *msg)
     return 1;
 }
 
-void sithDSSThing_SendPlaySound(sithThing *followThing, rdVector3 *pos, sithSound *sound, float volume, float a5, int flags, int refid, int sendto_id, int mpFlags)
+void sithDSSThing_SendPlaySound(sithThing *followThing, rdVector3 *pos, sithSound *sound, flex32_t volume, flex32_t a5, int flags, int refid, int sendto_id, int mpFlags)
 {
     NETMSG_START;
 
@@ -296,8 +325,8 @@ int sithDSSThing_ProcessPlaySound(sithCogMsg *msg)
     NETMSG_IN_START(msg);
 
     int flags = NETMSG_POPU32();
-    float volume = NETMSG_POPF32();
-    float a5 = NETMSG_POPF32();
+    flex32_t volume = NETMSG_POPF32();
+    flex32_t a5 = NETMSG_POPF32();
     int16_t soundIdx = NETMSG_POPS16();
     sithSound* sound = sithSound_GetFromIdx(soundIdx);
 
@@ -330,7 +359,7 @@ int sithDSSThing_ProcessPlaySound(sithCogMsg *msg)
     return 1;
 }
 
-void sithDSSThing_SendPlaySoundMode(sithThing *pThing, int16_t a2, int a3, float a4)
+void sithDSSThing_SendPlaySoundMode(sithThing *pThing, int16_t a2, int a3, flex32_t a4)
 {
     NETMSG_START;
 
@@ -355,7 +384,7 @@ int sithDSSThing_ProcessPlaySoundMode(sithCogMsg *msg)
         return 0;
     
     int v4 = NETMSG_POPS32();
-    float v3 = NETMSG_POPF32();
+    flex32_t v3 = NETMSG_POPF32();
     int16_t idk = NETMSG_POPS16();
 
     if ( v3 >= 0.0 )
@@ -487,7 +516,7 @@ int sithDSSThing_ProcessSetThingModel(sithCogMsg *msg)
     return 0;
 }
 
-void sithDSSThing_SendStopKey(sithThing *pThing, int a2, float a3, int sendtoId, int mpFlags)
+void sithDSSThing_SendStopKey(sithThing *pThing, int a2, flex32_t a3, int sendtoId, int mpFlags)
 {
     NETMSG_START;
 
@@ -529,7 +558,7 @@ int sithDSSThing_ProcessStopKey(sithCogMsg *msg)
     return 1;
 }
 
-void sithDSSThing_SendStopSound(sithPlayingSound *pSound, float a2, int a3, int a4)
+void sithDSSThing_SendStopSound(sithPlayingSound *pSound, flex32_t a2, int a3, int a4)
 {
     NETMSG_START;
 
@@ -546,7 +575,7 @@ int sithDSSThing_ProcessStopSound(sithCogMsg *msg)
     NETMSG_IN_START(msg);
 
     int refid = NETMSG_POPS32();
-    float fadeInTime = NETMSG_POPF32();
+    flex32_t fadeInTime = NETMSG_POPF32();
     sithPlayingSound* pSound = sithSoundMixer_GetSoundFromRef(refid);
     if ( pSound )
     {
@@ -562,9 +591,11 @@ int sithDSSThing_ProcessStopSound(sithCogMsg *msg)
 }
 
 // MoTS altered
-void sithDSSThing_SendFireProjectile(sithThing *pWeapon, sithThing *pProjectile, rdVector3 *pFireOffset, rdVector3 *pAimError, sithSound *pFireSound, int16_t anim, float scale, int16_t scaleFlags, float a9, int thingId, int sendtoId, int mpFlags, int idk)
+void sithDSSThing_SendFireProjectile(sithThing *pWeapon, sithThing *pProjectile, rdVector3 *pFireOffset, rdVector3 *pAimError, sithSound *pFireSound, int16_t anim, flex32_t scale, int16_t scaleFlags, flex32_t a9, int thingId, int sendtoId, int mpFlags, int idk)
 {
     NETMSG_START;
+
+    //printf("sithDSSThing_SendFireProjectile %x %x (%f %f %f) (%f %f %f) %x %f %x %f\n", pWeapon ? pWeapon->thing_id : -1, pProjectile->thingIdx, pAimError->x, pAimError->y, pAimError->z, pFireOffset->x, pFireOffset->y, pFireOffset->z, anim, scale, scaleFlags, a9);
 
     NETMSG_PUSHS32(pWeapon->thing_id);
     NETMSG_PUSHS16(scaleFlags);
@@ -588,7 +619,7 @@ void sithDSSThing_SendFireProjectile(sithThing *pWeapon, sithThing *pProjectile,
     NETMSG_PUSHF32(a9);
     NETMSG_PUSHS32(thingId);
 
-    if (idk == 0) {
+    if (idk == 0 || !Main_bMotsCompat) {
         NETMSG_END(DSS_FIREPROJECTILE);
     }
     else if (Main_bMotsCompat) {
@@ -604,18 +635,24 @@ int sithDSSThing_ProcessFireProjectile(sithCogMsg *msg)
 {
     NETMSG_IN_START(msg);
 
-    sithThing* pThing = sithThing_GetById(NETMSG_POPS32());
+    int idx = NETMSG_POPS32();
+
+    // TODO: bug? if this fails, it might completely screw over save files?
+
+    sithThing* pThing = sithThing_GetById(idx);
     if ( pThing )
     {
         int16_t scaleFlags = NETMSG_POPS16();
-        sithThing* pTemplate = sithTemplate_GetEntryByIdx(NETMSG_POPS16());
+        int16_t templateIdx = NETMSG_POPS16();
+        sithThing* pTemplate = sithTemplate_GetEntryByIdx(templateIdx);
         sithSound* pSound = sithSound_GetFromIdx(NETMSG_POPS16());
         int anim = NETMSG_POPS16();
         rdVector3 aimError = NETMSG_POPVEC3();
         rdVector3 fireOffset = NETMSG_POPVEC3();
-        float scale = NETMSG_POPF32();
-        float a9 = NETMSG_POPF32();
+        flex32_t scale = NETMSG_POPF32();
+        flex32_t a9 = NETMSG_POPF32();
         int thingId = NETMSG_POPS32();
+        //printf("sithDSSThing_ProcessFireProjectile %x %x (%f %f %f) (%f %f %f) %x %f %x %f\n", idx, templateIdx, aimError.x, aimError.y, aimError.z, fireOffset.x, fireOffset.y, fireOffset.z, anim, scale, scaleFlags, a9);
         sithThing* pThing2 = sithWeapon_FireProjectile_0(
                       pThing,
                       pTemplate,
@@ -650,8 +687,8 @@ int sithDSSThing_ProcessMOTSNew2(sithCogMsg *msg)
         int anim = NETMSG_POPS16();
         rdVector3 aimError = NETMSG_POPVEC3();
         rdVector3 fireOffset = NETMSG_POPVEC3();
-        float scale = NETMSG_POPF32();
-        float a9 = NETMSG_POPF32();
+        flex32_t scale = NETMSG_POPF32();
+        flex32_t a9 = NETMSG_POPF32();
         int thingId = NETMSG_POPS32();
         int idk = NETMSG_POPS32();
         sithThing* pThing2 = sithWeapon_FireProjectile_0(
@@ -721,7 +758,7 @@ int sithDSSThing_ProcessDeath(sithCogMsg *msg)
     return 0;
 }
 
-void sithDSSThing_SendDamage(sithThing *pDamagedThing, sithThing *pDamagedBy, float amt, int16_t a4, int sendtoId, int mpFlags)
+void sithDSSThing_SendDamage(sithThing *pDamagedThing, sithThing *pDamagedBy, flex32_t amt, int16_t a4, int sendtoId, int mpFlags)
 {
     NETMSG_START;
 
@@ -754,7 +791,7 @@ int sithDSSThing_ProcessDamage(sithCogMsg *msg)
         if ( !pDamagedBy )
             pDamagedBy = pDamagedThing;
 
-        float arg2 = NETMSG_POPF32();
+        flex32_t arg2 = NETMSG_POPF32();
         int16_t arg3 = NETMSG_POPS16();
         sithThing_Damage(pDamagedThing, pDamagedBy, arg2, arg3);
         return 1;
@@ -965,12 +1002,12 @@ int sithDSSThing_ProcessFullDesc(sithCogMsg *msg)
     if ( v8 >= sithWorld_pCurrentWorld->numTemplatesLoaded )
         return 0;
 
-    sithThing_sub_4CD8A0(thing, &sithWorld_pCurrentWorld->templates[v8]);
+    sithThing_InstantiateFromTemplate(thing, &sithWorld_pCurrentWorld->templates[v8]);
 
     thing->signature = NETMSG_POPS32();
     thing->thing_id = NETMSG_POPS32();
     thing->type = type;
-    //thing->thingtype = type; // Added: why is this needed?
+    //thing->controlType = type; // Added: why is this needed?
     thing->position = NETMSG_POPVEC3();
     thing->lookOrientation.rvec = NETMSG_POPVEC3();
     thing->lookOrientation.lvec = NETMSG_POPVEC3();
@@ -1025,6 +1062,7 @@ int sithDSSThing_ProcessFullDesc(sithCogMsg *msg)
         }
     }
 
+    int playerInfo_idx = -1;
     switch ( thing->type )
     {
         case SITH_THING_ACTOR:
@@ -1039,7 +1077,7 @@ int sithDSSThing_ProcessFullDesc(sithCogMsg *msg)
             thing->actorParams.lightIntensity = NETMSG_POPF32();
             thing->actorParams.field_1BC = NETMSG_POPS32();
             
-            int playerInfo_idx = NETMSG_POPS32();
+            playerInfo_idx = NETMSG_POPS32();
             
             if ( playerInfo_idx >= 0 && playerInfo_idx < 32 )
             {
@@ -1090,24 +1128,45 @@ int sithDSSThing_ProcessFullDesc(sithCogMsg *msg)
         thing->trackParams.orientation = NETMSG_POPVEC3();
         thing->trackParams.loadedFrames = NETMSG_POPS16();
 
+        if (thing->trackParams.sizeFrames && thing->trackParams.loadedFrames < 0) {
+            stdPlatform_Printf("OpenJKDF2: Serialized thing has underflowed trackParams.loadedFrames 0x%x, size 0x%x\n", thing->trackParams.loadedFrames, thing->trackParams.sizeFrames);
+            return 0;
+        }
+        else if (!thing->trackParams.sizeFrames && thing->trackParams.loadedFrames < 0) {
+            stdPlatform_Printf("OpenJKDF2: Serialized thing has underflowed trackParams.loadedFrames 0x%x, size 0x%x, recovering?\n", thing->trackParams.loadedFrames, thing->trackParams.sizeFrames);
+#ifdef SITH_DEBUG_STRUCT_NAMES
+            stdPlatform_Printf("OpenJKDF2: Template ID %x, %s\n", v8, sithWorld_pCurrentWorld->templates[v8].template_name);
+#endif
+            thing->trackParams.loadedFrames = thing->trackParams.sizeFrames;
+        }
+
         if ( thing->trackParams.loadedFrames )
         {
             // TODO: verify this doesn't leak memory
             thing->trackParams.sizeFrames = thing->trackParams.loadedFrames;
-            thing->trackParams.aFrames = pSithHS->alloc(sizeof(sithThingFrame) * thing->trackParams.sizeFrames);
+
+            // Prevent memleaks
+            if (thing->trackParams.aFrames) {
+                pSithHS->free(thing->trackParams.aFrames);
+            }
+            thing->trackParams.aFrames = (sithThingFrame*)pSithHS->alloc(sizeof(sithThingFrame) * thing->trackParams.sizeFrames);
         }
 
         for (int i = 0; i < thing->trackParams.loadedFrames; i++)
         {
-            thing->trackParams.aFrames[i].pos = NETMSG_POPVEC3();
-            thing->trackParams.aFrames[i].rot = NETMSG_POPVEC3();
+            rdVector3 tmp1 = NETMSG_POPVEC3();
+            rdVector3 tmp2 = NETMSG_POPVEC3();
+            if (thing->trackParams.aFrames) {
+                thing->trackParams.aFrames[i].pos = tmp1;
+                thing->trackParams.aFrames[i].rot = tmp2;
+            }
         }
     }
     sithThing_sub_4CD100(thing);
     return 1;
 }
 
-void sithDSSThing_SendPathMove(sithThing *pThing, int16_t a2, float a3, int a4, int sendtoId, int mpFlags)
+void sithDSSThing_SendPathMove(sithThing *pThing, int16_t a2, flex32_t a3, int a4, int sendtoId, int mpFlags)
 {
     rdVector3 out;
 
@@ -1120,7 +1179,7 @@ void sithDSSThing_SendPathMove(sithThing *pThing, int16_t a2, float a3, int a4, 
 
     NETMSG_PUSHS32(a4);
     NETMSG_PUSHS32(pThing->thing_id);
-    NETMSG_PUSHU32(bShowInvisibleThings);
+    NETMSG_PUSHU32(jkPlayer_currentTickIdx);
     NETMSG_PUSHS16(pThing->sector->id);
     NETMSG_PUSHVEC3(pThing->position);
     rdMatrix_ExtractAngles34(&pThing->lookOrientation, &out);
@@ -1156,7 +1215,7 @@ int sithDSSThing_ProcessPathMove(sithCogMsg *msg)
         
         rdMatrix_BuildRotate34(&pThing->lookOrientation, &lookAngles);
         int arg9 = NETMSG_POPS16();
-        float arg10 = NETMSG_POPF32();
+        flex32_t arg10 = NETMSG_POPF32();
 
         if ( arg0 )
         {
@@ -1188,7 +1247,7 @@ void sithDSSThing_SendSyncThingAttachment(sithThing *thing, int sendto_id, int m
 
     if (thing->attach_flags & SITH_ATTACH_WORLDSURFACE)
     {
-        NETMSG_PUSHU16(thing->attachedSurface->field_0);
+        NETMSG_PUSHU16(thing->attachedSurface->index);
     }
     else if (thing->attach_flags & (SITH_ATTACH_THING|SITH_ATTACH_THINGSURFACE))
     {
@@ -1301,7 +1360,6 @@ void sithDSSThing_SendTakeItem(sithThing *pItemThing, sithThing *pActor, int mpF
     {
         if ( sithComm_netMsgTmp.netMsg.cogMsgId != DSS_TAKEITEM1 )
         {
-LABEL_12:
             sithItem_Take(pItemThing2, pActor2, 1);
             return;
         }
@@ -1309,7 +1367,8 @@ LABEL_12:
         {
             sithComm_netMsgTmp.netMsg.cogMsgId = DSS_TAKEITEM2;
             sithComm_SendMsgToPlayer(&sithComm_netMsgTmp, -1, 1, 1);
-            goto LABEL_12;
+            sithItem_Take(pItemThing2, pActor2, 1);
+            return;
         }
     }
 }
@@ -1333,8 +1392,11 @@ int sithDSSThing_ProcessTakeItem(sithCogMsg *msg)
         sithComm_SendMsgToPlayer(&sithComm_netMsgTmp, v6, 255, 1);
         return 0;
     }
-    v4 = sithThing_GetById(msg->pktData[1]);
-    if ( v2 && v4 )
+    if (msg->pktData[1] == -1) // MOTS added
+        v4 = NULL;
+    else
+        v4 = sithThing_GetById(msg->pktData[1]);
+    if ( v2 /*&& v4*/ ) // MOTS removed nullptr check
     {
         if ( msg->netMsg.cogMsgId == DSS_TAKEITEM1 )
         {
@@ -1437,10 +1499,25 @@ void sithDSSThing_TransitionMovingThing(sithThing *pThing, rdVector3 *pPos, sith
 {
     rdVector3 a1; // [esp+8h] [ebp-Ch] BYREF
 
+#ifdef QOL_IMPROVEMENTS
+    if ( pThing->moveType == SITH_MT_PHYSICS )
+    {
+        rdVector_Scale3(&a1, &pThing->physicsParams.vel, 0.25);
+    }
+    else if (pThing->moveType == SITH_MT_PATH) {
+        stdPlatform_Printf("OpenJKDDF2: attempted sithDSSThing_TransitionMovingThing on track thing! This would corrupt state in the original game.\n");
+        //rdVector_Scale3(&a1, &pThing->trackParams.vel, 0.25); // TODO: idk if we want this?
+    }
+    else {
+        stdPlatform_Printf("OpenJKDDF2: attempted sithDSSThing_TransitionMovingThing on non-physics thing!\n");
+    }
+#else
     rdVector_Scale3(&a1, &pThing->physicsParams.vel, 0.25);
+#endif
+
     rdVector_Add3Acc(&a1, pPos);
     rdVector_Sub3Acc(&a1, &pThing->position);
-    float v5 = rdVector_Len3(&a1);
+    flex_t v5 = rdVector_Len3(&a1);
     if ( v5 == 0.0 || v5 >= 0.5 )
     {
         rdVector_Copy3(&pThing->position, pPos);
@@ -1448,7 +1525,21 @@ void sithDSSThing_TransitionMovingThing(sithThing *pThing, rdVector3 *pPos, sith
     }
     else
     {
+#ifdef QOL_IMPROVEMENTS
+    if ( pThing->moveType == SITH_MT_PHYSICS )
+    {
         rdVector_Scale3(&pThing->physicsParams.vel, &a1, 4.0);
+    }
+    else if (pThing->moveType == SITH_MT_PATH) {
+        stdPlatform_Printf("OpenJKDDF2: attempted sithDSSThing_TransitionMovingThing on track thing! This would corrupt state in the original game.\n");
+        //rdVector_Scale3(&a1, &pThing->trackParams.vel, 4.0); // TODO: idk if we want this?
+    }
+    else {
+        stdPlatform_Printf("OpenJKDDF2: attempted sithDSSThing_TransitionMovingThing on non-physics thing!\n");
+    }
+#else
+        rdVector_Scale3(&pThing->physicsParams.vel, &a1, 4.0);
+#endif
     }
 }
 

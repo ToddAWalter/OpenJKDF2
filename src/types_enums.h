@@ -172,6 +172,8 @@ enum SITH_ITEMFLAG_E // could be jones specific
     SITH_ITEM_RESPAWN_MP = 0x1,
     SITH_ITEM_RESPAWN_SP = 0x2,
     SITH_ITEM_BACKPACK = 0x4,
+    SITH_ITEM_8 = 0x8,
+    SITH_ITEM_10 = 0x10
 };
 
 enum jkEpisodeLoadType
@@ -206,23 +208,29 @@ typedef enum
 #define JK_NUM_MOUSE_AXES       (3)
 #define JK_NUM_AXES             ((JK_JOYSTICK_AXIS_STRIDE * JK_NUM_JOYSTICKS) + JK_NUM_MOUSE_AXES)
 
-#ifndef SDL2_RENDER
+#if defined(SDL2_RENDER) || defined(TARGET_TWL)
+#define JK_NUM_MOUSE_BUTTONS     (4)
+#define JK_NUM_EXT_MOUSE_BUTTONS (1)
+#define JK_NUM_JOY_BUTTONS       (8)
+#define JK_NUM_EXT_JOY_BUTTONS   (24)
+#define JK_NUM_HAT_BUTTONS       (4)
+#else
 #define JK_NUM_MOUSE_BUTTONS     (4)
 #define JK_NUM_EXT_MOUSE_BUTTONS (0)
 #define JK_NUM_JOY_BUTTONS       (8)
 #define JK_NUM_EXT_JOY_BUTTONS   (0)
-#define JK_NUM_HAT_BUTTONS       (4)
-#else
-#define JK_NUM_MOUSE_BUTTONS     (4)
-#define JK_NUM_EXT_MOUSE_BUTTONS (28)
-#define JK_NUM_JOY_BUTTONS       (8)
-#define JK_NUM_EXT_JOY_BUTTONS   (24)
 #define JK_NUM_HAT_BUTTONS       (4)
 #endif
 
 #define JK_JOYSTICK_BUTTON_STRIDE       (JK_NUM_JOY_BUTTONS + JK_NUM_HAT_BUTTONS)
 #define JK_JOYSTICK_EXT_BUTTON_STRIDE   (JK_NUM_EXT_JOY_BUTTONS)
 #define JK_NUM_EXTENDED_KEYS ((JK_JOYSTICK_BUTTON_STRIDE * JK_NUM_JOYSTICKS) + JK_NUM_MOUSE_BUTTONS + JK_NUM_EXT_MOUSE_BUTTONS + (JK_JOYSTICK_EXT_BUTTON_STRIDE * JK_NUM_JOYSTICKS))
+
+#if defined(SDL2_RENDER) || defined(TARGET_TWL)
+    #define JK_TOTAL_NUM_KEYS (120+JK_NUM_EXTENDED_KEYS)
+#else
+    #define JK_TOTAL_NUM_KEYS (148)
+#endif
 
 #define JK_NUM_KEYS_ORIG        (0x100 + JK_NUM_EXTENDED_KEYS) // original game had an off-by-one?
 #define JK_NUM_KEYS             (0x100 + JK_NUM_EXTENDED_KEYS)
@@ -271,7 +279,7 @@ typedef enum
 #define JK_EXT_MOUSE_END        (KEY_MOUSE_B5 + JK_NUM_EXT_MOUSE_BUTTONS)
 
 #define KEY_IS_MOUSE(x) ((x >= KEY_MOUSE_B1 && x <= KEY_MOUSE_B4) || (x >= KEY_MOUSE_B5 && x < JK_EXT_MOUSE_END))
-#define KEY_IS_JOY_BUTTON(x) ((x >= KEY_JOY1_B1 && x < KEY_MOUSE_STARTIDX) || (x >= (KEY_JOY1_B9 - 1) && x < KEY_JOY2_EXT_ENDIDX))
+#define KEY_IS_JOY_BUTTON(x) ((x >= KEY_JOY1_B1 && x < KEY_MOUSE_STARTIDX) || (x >= KEY_JOY1_B9 && x < KEY_JOY2_EXT_ENDIDX))
 #define KEY_IS_BUTTON(x) (KEY_IS_JOY_BUTTON(x) || x < JK_EXTENDED_KEY_START)
 
 // QOL added:
@@ -347,28 +355,33 @@ typedef enum
 #define AXIS_MOUSE_Y         ((JK_JOYSTICK_AXIS_STRIDE * 2) + 1) // d 13
 #define AXIS_MOUSE_Z         ((JK_JOYSTICK_AXIS_STRIDE * 2) + 2) // e 14
 
+#define INPUT_MAPPING_FLAG_AXIS             (1)
+#define INPUT_MAPPING_FLAG_DXKEY            (2)
+#define INPUT_MAPPING_FLAG_AXIS_REVERSED    (4)
+#define INPUT_MAPPING_FLAG_RAW_AXIS         (8)
+
 // g_debugmodeFlags defines
-#define DEBUGFLAG_1         (0x1)
-#define DEBUGFLAG_2         (0x2)
-#define DEBUGFLAG_4         (0x4)
-#define DEBUGFLAG_8         (0x8)
-#define DEBUGFLAG_10        (0x10)
-#define DEBUGFLAG_20        (0x20)
-#define DEBUGFLAG_40        (0x40)
-#define DEBUGFLAG_80        (0x80)
-#define DEBUGFLAG_100       (0x100)
-#define DEBUGFLAG_200       (0x200)
-#define DEBUGFLAG_SLOWMO    (0x400)
-#define DEBUGFLAG_800       (0x800)
-#define DEBUGFLAG_1000      (0x1000)
-#define DEBUGFLAG_2000      (0x2000)
-#define DEBUGFLAG_4000      (0x4000)
-#define DEBUGFLAG_8000      (0x8000)
-#define DEBUGFLAG_10000     (0x10000)
-#define DEBUGFLAG_20000     (0x20000)
-#define DEBUGFLAG_40000     (0x40000)
-#define DEBUGFLAG_80000     (0x80000)
-#define DEBUGFLAG_NOCLIP    (0x40000000)
+#define DEBUGFLAG_NO_AIEVENTS          (0x1)
+#define DEBUGFLAG_NO_PUPPETS           (0x2)
+#define DEBUGFLAG_4                    (0x4)
+#define DEBUGFLAG_8                    (0x8)
+#define DEBUGFLAG_10                   (0x10)
+#define DEBUGFLAG_20                   (0x20)
+#define DEBUGFLAG_PRINT_HITS           (0x40)
+#define DEBUGFLAG_NO_AI                (0x80)
+#define DEBUGFLAG_IN_EDITOR            (0x100)
+#define DEBUGFLAG_NO_AILOOK_FOR_TARGET (0x200)
+#define DEBUGFLAG_SLOWMO               (0x400)
+#define DEBUGFLAG_800                  (0x800)
+#define DEBUGFLAG_1000                 (0x1000)
+#define DEBUGFLAG_2000                 (0x2000)
+#define DEBUGFLAG_4000                 (0x4000)
+#define DEBUGFLAG_8000                 (0x8000)
+#define DEBUGFLAG_10000                (0x10000)
+#define DEBUGFLAG_20000                (0x20000)
+#define DEBUGFLAG_40000                (0x40000)
+#define DEBUGFLAG_80000                (0x80000)
+#define DEBUGFLAG_NOCLIP               (0x40000000)
 
 // hitType
 enum SITHCOLLISION
@@ -388,24 +401,24 @@ enum SithCollideType
 {
     SITH_COLLIDE_NONE = 0x0,
     SITH_COLLIDE_SPHERE = 0x1,
-    SITH_COLLIDE_2 = 0x2,
+    SITH_COLLIDE_SPHERE_TREE = 0x2,
     SITH_COLLIDE_FACE = 0x3,
 };
 
 enum SithRaycastType
 {
     RAYCAST_1 = 0x1,
-    RAYCAST_2 = 0x2,
-    RAYCAST_4 = 0x4,
+    RAYCAST_2 = 0x2,  // actor?
+    RAYCAST_4 = 0x4,  // path thing?
     RAYCAST_8 = 0x8,
-    RAYCAST_10 = 0x10,
+    RAYCAST_10 = 0x10, // wall?
     RAYCAST_20 = 0x20,
     RAYCAST_40 = 0x40,
     RAYCAST_80 = 0x80,
     RAYCAST_100 = 0x100,
-    RAYCAST_200 = 0x200,
-    RAYCAST_400 = 0x400,
-    RAYCAST_800 = 0x800,
+    RAYCAST_200 = 0x200, // player?
+    RAYCAST_400 = 0x400, // something with radius?
+    RAYCAST_800 = 0x800, // adjoins?
     RAYCAST_1000 = 0x1000,
     RAYCAST_2000 = 0x2000,
     RAYCAST_4000 = 0x4000,
@@ -444,6 +457,23 @@ enum CLIP_OUTCODE
     CLIP_RIGHT = 0x10,
     CLIP_BOTTOM = 0x100,
     CLIP_TOP = 0x1000
+};
+
+enum RdClipFaceStatus {
+    CLIPSTAT_NEAR = 0x01,
+    CLIPSTAT_FAR = 0x02,
+    CLIPSTAT_TOP = 0x04,
+    CLIPSTAT_BOTTOM = 0x08,
+    CLIPSTAT_LEFT = 0x10,
+    CLIPSTAT_RIGHT = 0x20,
+    CLIPSTAT_NONE_VISIBLE = 0x40,
+    CLIPSTAT_80 = 0x80
+};
+
+enum RdSphereClipStatus {
+    SPHERE_FULLY_INSIDE = 0,
+    SPHERE_CLIPPING_EDGE = 1,
+    SPHERE_FULLY_OUTSIDE = 2,
 };
 
 enum RD_THINGTYPE
@@ -519,6 +549,8 @@ enum JOINTTYPE
     JOINTTYPE_SECONDARYWEAP  = 4,
     JOINTTYPE_PRIMARYWEAPJOINT  = 5,
     JOINTTYPE_SECONDARYWEAPJOINT  = 6,
+    JOINTTYPE_TURRETPITCH  = 7,
+    JOINTTYPE_TURRETYAW  = 8,
 };
 
 enum DSS_ID
@@ -589,6 +621,8 @@ enum DSS_ID
     DSS_64        = 64,
     DSS_MAX        = 66
 };
+
+const char* sithDSS_IdToStr(int id);
 
 enum sithMultiModeFlags
 {
@@ -707,7 +741,20 @@ enum INPUT_FUNC
     INPUT_FUNC_ACTIVATE29 = 71,
     INPUT_FUNC_ACTIVATE30 = 72,
     INPUT_FUNC_ACTIVATE31 = 73,
+
+#ifdef QOL_IMPROVEMENTS
+    INPUT_FUNC_USELASTSELECTED = 74,
+    INPUT_FUNC_MAX = 75,
+#else
     INPUT_FUNC_MAX = 74,
+#endif
+
+};
+
+enum SithLastSelected_e {
+    LAST_SELECTED_SKILL = 0,
+    LAST_SELECTED_ITEM = 1,
+    LAST_SELECTED_MAX = 2,
 };
 
 enum SITHSOUNDFLAG
@@ -1037,6 +1084,13 @@ enum SITHBIN
     SITHBIN_MAX      = 199
 };
 
+enum GOAL_FLAGS
+{
+    GOAL_EXISTS = 1,
+    GOAL_COMPLETE = 2,
+    GOAL_SECRET = 4, // Unused, makes text show as yellow
+};
+
 enum ITEMINFO_FLAGS
 {
     ITEMINFO_VALID   = 1,
@@ -1118,7 +1172,7 @@ enum THING_PHYSFLAGS
     SITH_PF_20000 = 0x20000,
     SITH_PF_PARTIALGRAVITY = 0x40000,
     SITH_PF_80000 = 0x80000,
-    SITH_PF_MIDAIR = 0x100000,
+    SITH_PF_WATERSURFACE = 0x100000,
     SITH_PF_200000 = 0x200000,
     SITH_PF_NOTHRUST = 0x400000,
     SITH_PF_800000 = 0x800000,
@@ -1234,6 +1288,23 @@ enum THINGTYPE
     SITH_THING_POLYLINE = 14,
     SITH_THING_NUMTYPES = 15,
     */
+};
+
+// Control Type
+enum SITH_CT {
+    SITH_CT_NONE = 0,
+    SITH_CT_1 = 1,
+    SITH_CT_AI = 2,
+    SITH_CT_3 = 3,
+    SITH_CT_4 = 4,
+    SITH_CT_5 = 5,
+    SITH_CT_EXPLOSION = 6,
+    SITH_CT_PARTICLE = 7,
+    SITH_CT_8 = 8,
+    SITH_CT_9 = 9,
+    SITH_CT_10 = 10,
+    SITH_CT_11 = 11,
+    SITH_CT_12 = 12,
 };
 
 enum SITH_DAMAGE
@@ -1410,5 +1481,34 @@ enum JKGUI_BM {
     JKGUI_BM_ARROW_LEFT = 33, 
     JKGUI_BM_ARROW_RIGHT = 34, 
 };
+
+enum SITH_MAPMODE
+{
+    MAPMODE_01 = 0x01,
+    MAPMODE_02 = 0x02,
+    MAPMODE_04 = 0x04,
+    MAPMODE_08 = 0x08,
+    MAPMODE_10 = 0x10,
+    MAPMODE_20 = 0x20,
+    MAPMODE_40 = 0x40,
+    MAPMODE_80 = 0x80,
+};
+
+enum AUTOPICKUP
+{
+    AUTOPICKUP_1 = 1,
+    AUTOPICKUP_DANGEROUS = 2,
+    AUTOPICKUP_4 = 4,
+    AUTOPICKUP_8 = 8,
+};
+
+#ifdef STDPLATFORM_HEAP_SUGGESTIONS
+enum HEAP_SUGGESTIONS {
+    HEAP_ANY = 0,
+    HEAP_FAST = 1,
+    HEAP_SLOW = 2,
+    HEAP_AUDIO = 3,
+};
+#endif
 
 #endif // _OPENJKDF2_TYPES_ENUMS_H

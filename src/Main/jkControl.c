@@ -24,6 +24,8 @@ static int jkControl_bInit;
 
 int jkControl_Startup()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+    
     sithControl_Startup();
     sithControl_AddInputHandler(sithControl_HandlePlayer);
     sithControl_AddInputHandler(sithWeapon_HandleWeaponKeys);
@@ -37,6 +39,8 @@ int jkControl_Startup()
 
 int jkControl_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     sithControl_Shutdown(); // Added
     jkControl_bInit = 0;
     return 1;
@@ -47,7 +51,7 @@ void jkControl_nullsub_37()
 }
 
 // MOTS altered done
-int jkControl_HandleHudKeys(sithThing *player, float b)
+int jkControl_HandleHudKeys(sithThing *player, flex_t b)
 {
     wchar_t *v2; // eax
     wchar_t *v5; // eax

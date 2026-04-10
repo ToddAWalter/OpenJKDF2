@@ -34,20 +34,20 @@ void stdControl_InitSdlJoysticks();
 
 void stdControl_Reset();
 int stdControl_EnableAxis(unsigned int idx);
-float stdControl_ReadAxis(int axisNum);
-int stdControl_ReadAxisRaw(int axisNum);
-float stdControl_ReadKeyAsAxis(int keyNum);
-int stdControl_ReadAxisAsKey(int axisNum);
-int stdControl_ReadKey(int keyNum, int *pOut);
+MATH_FUNC flex_t stdControl_ReadAxis(int axisNum);
+MATH_FUNC int stdControl_ReadAxisRaw(int axisNum);
+MATH_FUNC flex_t stdControl_ReadKeyAsAxis(int keyNum);
+MATH_FUNC int stdControl_ReadAxisAsKey(int axisNum);
+MATH_FUNC int stdControl_ReadKey(int keyNum, int *pOut);
 void stdControl_FinishRead();
 int stdControl_MessageHandler(HWND hWnd, UINT Msg, WPARAM wParam, HWND lParam, LRESULT* unused);
-void stdControl_SetMouseSensitivity(float xSensitivity, float ySensitivity);
+void stdControl_SetMouseSensitivity(flex_t xSensitivity, flex_t ySensitivity);
 void stdControl_SetKeydown(int keyNum, int bDown, uint32_t readTime);
 void stdControl_SetSDLKeydown(int keyNum, int bDown, uint32_t readTime);
 
-void stdControl_InitAxis(int index, int stickMin, int stickMax, float multiplier);
+MATH_FUNC void stdControl_InitAxis(int index, int stickMin, int stickMax, flex_t multiplier);
 
-#ifndef SDL2_RENDER
+#if !defined(SDL2_RENDER) && defined(WIN32)
 static int (*stdControl_Startup)() = (void*)stdControl_Startup_ADDR;
 static void (*stdControl_Shutdown)() = (void*)stdControl_Shutdown_ADDR;
 static int (*stdControl_Open)() = (void*)stdControl_Open_ADDR;
@@ -69,7 +69,12 @@ void stdControl_ReadControls();
 void stdControl_ReadMouse();
 #endif
 
-extern const stdControlDikStrToNum stdControl_aDikNumToStr[120 + JK_NUM_EXTENDED_KEYS];
+// Added: pop system keyboard on DSi or Steam Deck
+void stdControl_ShowSystemKeyboard();
+void stdControl_HideSystemKeyboard();
+BOOL stdControl_IsSystemKeyboardShowing();
+
+extern const stdControlDikStrToNum stdControl_aDikNumToStr[JK_TOTAL_NUM_KEYS];
 extern const char *stdControl_aAxisNames[JK_NUM_AXES+1];
 
 //static int (*stdControl_MessageHandler)(HWND a1, UINT a2, WPARAM a3, HWND a4, LRESULT *a5) = (void*)stdControl_MessageHandler_ADDR;;

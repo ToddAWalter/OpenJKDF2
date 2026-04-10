@@ -37,7 +37,7 @@ static wchar_t jkGuiMain_versionBuffer[64];
 static int jkGuiMain_bIdk = 1;
 static int jkGuiCutscenes_initted;
 
-static uint32_t jkGuiMain_listboxIdk[2] = {0xd, 0xe};
+static int32_t jkGuiMain_listboxIdk[2] = {0xd, 0xe};
 
 static jkGuiElement jkGuiMain_cutscenesElements[5] = {
     {ELEMENT_TEXT, 0, 5, "GUI_VIEWCUTSCENES", 3, {0, 50, 640, 60}, 1, 0, 0, 0, 0, 0, {0}, 0},
@@ -47,12 +47,17 @@ static jkGuiElement jkGuiMain_cutscenesElements[5] = {
     {ELEMENT_END, 0, 0, 0, 0, {0}, 0, 0, 0, 0, 0, 0, {0}, 0}
 };
 
-static jkGuiMenu jkGuiMain_cutscenesMenu = {jkGuiMain_cutscenesElements, 0xFFFFFFFF, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
+static jkGuiMenu jkGuiMain_cutscenesMenu = {jkGuiMain_cutscenesElements, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 
 static jkGuiElement jkGuiMain_elements[11] = {
-    {ELEMENT_TEXTBUTTON, 10, 5, "GUI_SINGLEPLAYER", 3, {0, 160, 0x280, 0x3C}, 1, 0, 0, 0, 0, 0, {0}, 0},
-    {ELEMENT_TEXTBUTTON, 11, 5, "GUI_MULTIPLAYER", 3, {0, 220, 0x280, 0x3C}, 1, 0, 0, 0, 0, 0, {0}, 0},
-    {ELEMENT_TEXTBUTTON, 12, 5, "GUI_QUIT", 3, {0, 0x118, 0x280, 0x3C}, 1, 0, 0, 0, 0, 0, {0}, 0},
+#ifndef TARGET_NO_MULTIPLAYER_MENUS
+    {ELEMENT_TEXTBUTTON, 10, 5, "GUI_SINGLEPLAYER", 3, {0, 160, 640, 60}, 1, 0, 0, 0, 0, 0, {0}, 0},
+    {ELEMENT_TEXTBUTTON, 11, 5, "GUI_MULTIPLAYER", 3, {0, 220, 640, 60}, 1, 0, 0, 0, 0, 0, {0}, 0},
+#else
+    {ELEMENT_TEXTBUTTON, 10, 5, "GUI_SINGLEPLAYER", 3, {0, 220, 640, 60}, 1, 0, 0, 0, 0, 0, {0}, 0},
+    {ELEMENT_TEXT, 11, 5, NULL, 3, {0, 0, 0, 0}, 1, 0, 0, 0, 0, 0, {0}, 0},
+#endif
+    {ELEMENT_TEXTBUTTON, 12, 5, "GUI_QUIT", 3, {0, 280, 640, 60}, 1, 0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_TEXTBUTTON, 14, 2, "GUI_CHOOSEPLAYER", 3, {20, 380, 150, 40}, 1, 0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_TEXTBUTTON, 15, 2, "GUI_VIEWCUTSCENES", 3, {250, 380, 150, 40}, 1, 0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_TEXTBUTTON, 13, 2, "GUI_SETUP", 3, {470, 380, 150, 40}, 1, 0, 0, 0, 0, 0, {0}, 0},
@@ -67,7 +72,7 @@ static jkGuiElement jkGuiMain_elements[11] = {
     {ELEMENT_END, 0, 0, 0, 0, {0}, 0, 0, 0, 0, 0, 0, {0}, 0}
 };
 
-static jkGuiMenu jkGuiMain_menu = {jkGuiMain_elements, 0xFFFFFFFF, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
+static jkGuiMenu jkGuiMain_menu = {jkGuiMain_elements, -1, 0xFFFF, 0xFFFF, 0xF, 0, 0, jkGui_stdBitmaps, jkGui_stdFonts, 0, 0, "thermloop01.wav", "thrmlpu2.wav", 0, 0, 0, 0, 0, 0};
 
 // MOTS altered
 void jkGuiMain_Show()
@@ -75,6 +80,13 @@ void jkGuiMain_Show()
     int v1; // esi
     wchar_t *v2; // eax
     wchar_t *v4; // [esp-4h] [ebp-Ch]
+
+#ifdef JKGUI_SMOL_SCREEN
+    for (int i = 0; i < 11; i++) {
+        jkGuiMain_elements[i].rect = jkGuiMain_elements[i].rectOrig;
+        jkGuiMain_elements[i].bIsSmolDirty = 1; 
+    }
+#endif
 
     if (!Main_bMotsCompat) {
         jkGuiMain_elements[0].rect.y = 160;
@@ -105,12 +117,34 @@ void jkGuiMain_Show()
 #endif
     }
 
+#ifdef JKGUI_SMOL_SCREEN
+    for (int i = 0; i < 11; i++) {
+        jkGuiMain_elements[i].rect.y -= 60;
+    }
+    
+    jkGuiMain_elements[0].rect.y += 70; // Singleplayer
+    jkGuiMain_elements[7].rect.height += 15; // Expansions & Mods
+    jkGuiMain_elements[8].rect.height += 10; // Version
+    jkGuiMain_elements[9].rect.height += 10; // git hash
+    jkGuiMain_elements[8].rect.y += 20;
+    jkGuiMain_elements[9].rect.y += 40; // git hash
+    jkGuiMain_elements[9].rect.x -= 15;
+    jkGui_SmolScreenFixup(&jkGuiMain_menu, 0);
+#endif
+
     // Added: OpenJKDF2 version
     jkGuiMain_elements[8].wstr = openjkdf2_waReleaseVersion;
     jkGuiMain_elements[9].wstr = openjkdf2_waReleaseCommitShort;
 
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_MAIN]);
+
     jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_MAIN]->palette);
-    if ( !jkGuiMain_bIdk || (jkGuiMain_bIdk = 0, jkGuiPlayer_ShowNewPlayer(1), !stdComm_dword_8321F8) || jkGuiMultiplayer_Show2() != 1 )
+    if ( !jkGuiMain_bIdk || (jkGuiMain_bIdk = 0, jkGuiPlayer_ShowNewPlayer(1), !stdComm_dword_8321F8)
+#ifndef TARGET_NO_MULTIPLAYER_MENUS 
+        || jkGuiMultiplayer_Show2() != 1 
+#endif
+        )
     {
         if (Main_bMotsCompat) {
             jkGuiMain_elements[4].bIsVisible = Main_bDevMode; // MOTS added
@@ -130,9 +164,11 @@ void jkGuiMain_Show()
                 case 10:
                     v1 = jkGuiSingleplayer_Show();
                     break;
+#ifndef TARGET_NO_MULTIPLAYER_MENUS
                 case 11:
                     v1 = jkGuiMultiplayer_Show();
                     break;
+#endif
                 case 12:
                     v4 = jkStrings_GetUniStringWithFallback("GUI_QUITCONFIRM_Q");
                     v2 = jkStrings_GetUniStringWithFallback("GUI_QUITCONFIRM");
@@ -200,6 +236,10 @@ void jkGuiMain_ShowCutscenes()
     if ( !jkGuiCutscenes_initted )
         jkGui_InitMenu(&jkGuiMain_cutscenesMenu, jkGui_stdBitmaps[JKGUI_BM_BK_SETUP]);
     jkGuiCutscenes_initted = 1;
+
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_MAIN]);
+    
     jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_MAIN]->palette);
     jkGuiRend_DarrayNewStr(&darray, 32, 1);
     if ( !jkPlayer_ReadConf(jkPlayer_playerShortName) )
@@ -252,6 +292,8 @@ LABEL_17:
 
 void jkGuiMain_Startup()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+    
     jkGui_InitMenu(&jkGuiMain_menu, jkGui_stdBitmaps[JKGUI_BM_BK_MAIN]);
 
     // Added: clean reset
@@ -260,6 +302,8 @@ void jkGuiMain_Startup()
 
 void jkGuiMain_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+
     // Added: clean reset
     jkGuiCutscenes_initted = 0;
 }

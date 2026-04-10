@@ -24,7 +24,7 @@ enum jkGuiDecisionButton_t
 };
 
 static wchar_t slider_val_text[5] = {0};
-static int slider_images[2] = {JKGUI_BM_SLIDER_BACK, JKGUI_BM_SLIDER_THUMB};
+static int32_t slider_images[2] = {JKGUI_BM_SLIDER_BACK, JKGUI_BM_SLIDER_THUMB};
 void jkGuiGeneral_FovDraw(jkGuiElement *element, jkGuiMenu *menu, stdVBuffer *vbuf, int redraw);
 
 static jkGuiElement jkGuiGeneral_aElements[23] = { 
@@ -44,7 +44,7 @@ static jkGuiElement jkGuiGeneral_aElements[23] = {
     // 12
 #if defined(QOL_IMPROVEMENTS) && !defined(SDL2_RENDER)
     {ELEMENT_TEXT,         0,            0, "GUIEXT_FOV",                 3, {20, 240, 300, 30}, 1,  0, 0, 0, 0, 0, {0}, 0},
-    {ELEMENT_SLIDER,       0,            0, (FOV_MAX - FOV_MIN),                    0, {10, 270, 320, 30}, 1, 0, "GUIEXT_FOV_HINT", jkGuiGeneral_FovDraw, 0, slider_images, {0}, 0},
+    {ELEMENT_SLIDER,       0,            0, (void*)(FOV_MAX - FOV_MIN),                    0, {10, 270, 320, 30}, 1, 0, "GUIEXT_FOV_HINT", jkGuiGeneral_FovDraw, 0, slider_images, {0}, 0},
     {ELEMENT_TEXT,         0,            0, slider_val_text,        3, {20, 300, 300, 30}, 1,  0, 0, 0, 0, 0, {0}, 0},
     {ELEMENT_CHECKBOX,     0,            0, "GUIEXT_FOV_VERTICAL",    0, {20, 320, 300, 40}, 1,  0, NULL, 0, 0, 0, {0}, 0},
 #else
@@ -99,6 +99,8 @@ void jkGuiGeneral_Startup()
 
 void jkGuiGeneral_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__); // Added
+    
     // Added: clean restart
     memset(slider_val_text, 0, sizeof(slider_val_text));
 }

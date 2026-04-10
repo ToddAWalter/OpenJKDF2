@@ -4,6 +4,7 @@
 
 #include "stdPlatform.h"
 #include "General/stdLinklist.h"
+#include "General/stdSingleLinklist.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -52,12 +53,17 @@ uint32_t stdHashTable_HashStringToIdx(const char *data, uint32_t numBuckets)
     
     if (!data || !data[0]) return 0; // Added
 
+#ifdef STDHASHTABLE_CRC32_KEYS
+    // TODO: check performance on this
+    hash = stdCrc32(data, strlen(data));
+#else
     hash = 0;
     for ( i = *data; i; ++data )
     {
         hash = (65599 * hash) + i;
         i = (uint8_t)data[1];
     }
+#endif
     return hash % numBuckets;
 }
 
@@ -70,12 +76,25 @@ stdHashTable* stdHashTable_New(int maxEntries)
     int actualNumBuckets = 1999;
     signed int v7;
 
-    hashtable = (stdHashTable *)std_pHS->alloc(sizeof(stdLinklist));
+    hashtable = (stdHashTable *)std_pHS->alloc(sizeof(stdHashTable));
     if (!hashtable)
         return NULL;
-    
+
     // Added: memset
     _memset(hashtable, 0, sizeof(*hashtable));
+
+    // Basically every usage of stdHashTable_New assumes maxEntries is
+    // exactly what it says, the maximum anticipated number of entries.
+    //
+    // But this constructor seems to interpret that as maxBuckets, which
+    // means everything is an O(1) lookup but also that the linked lists
+    // never actually get uh, linked. lol
+    //
+    // So this just log2's the argument to make stdHashTable smaller in RAM
+    // and O(log2(n)) lookups
+#ifdef STDHASHTABLE_LOG2_BUCKETS
+    maxEntries = (int)log2(maxEntries) / 2;
+#endif
 
     sizeIterIdx = 0;
     calcedPrime = maxEntries;
@@ -116,23 +135,32 @@ loop_escape:
     }
 
     hashtable->numBuckets = actualNumBuckets;
-    hashtable->buckets = (stdLinklist *)std_pHS->alloc(sizeof(stdLinklist) * actualNumBuckets);
+    hashtable->buckets = (tHashLink *)std_pHS->alloc(sizeof(tHashLink) * actualNumBuckets);
     if ( hashtable->buckets )
     {
-      _memset(hashtable->buckets, 0, sizeof(stdLinklist) * hashtable->numBuckets);
+      _memset(hashtable->buckets, 0, sizeof(tHashLink) * hashtable->numBuckets);
       hashtable->keyHashToIndex = stdHashTable_HashStringToIdx;
+    }
+    else {
+        // Added: fail more gracefully and without memleaks
+        std_pHS->free(hashtable);
+        return NULL;
     }
     return hashtable;
 }
 
-stdLinklist* stdHashTable_GetBucketTail(stdLinklist *pLL)
+tHashLink* stdHashTable_GetBucketTail(tHashLink *pLL)
 {
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+    return stdSingleLinklist_GetTail(pLL);
+#else
     return stdLinklist_GetTail(pLL);
+#endif
 }
 
-void stdHashTable_FreeBuckets(stdLinklist *a1)
+void stdHashTable_FreeBuckets(tHashLink *a1)
 {
-    stdLinklist *iter;
+    tHashLink *iter;
     
     // Added: nullptr check
     if (!a1) return;
@@ -141,7 +169,7 @@ void stdHashTable_FreeBuckets(stdLinklist *a1)
     while ( iter )
     {
         // TODO verify possible regression, prevent double free?
-        stdLinklist* next_iter = iter->next;
+        tHashLink* next_iter = iter->next;
         iter->next = NULL; // added
 
         //printf("Free from %p: %p\n", a1, iter);
@@ -155,8 +183,8 @@ void stdHashTable_Free(stdHashTable *table)
 {
     int bucketIdx;
     int bucketIdx2;
-    stdLinklist *iter;
-    stdLinklist *iter_child;
+    tHashLink *iter;
+    tHashLink *iter_child;
     
     // Added: nullptr check
     if (!table) return;
@@ -182,88 +210,136 @@ void stdHashTable_Free(stdHashTable *table)
 
 int stdHashTable_SetKeyVal(stdHashTable *hashmap, const char *key, void *value)
 {
-    stdLinklist *new_child; // eax
-    stdLinklist *v9; // ecx
-    stdLinklist *v10; // esi
+    tHashLink *new_child; // eax
+    tHashLink *v9; // ecx
+    tHashLink *v10; // esi
 
     // ADDED
-    if (!hashmap)
+    if (!hashmap || !key)
         return 0;
 
-    if (stdHashTable_GetKeyVal(hashmap, key))
+    if (stdHashTable_GetKeyVal(hashmap, key)) {
+#ifndef SITH_DEBUG_STRUCT_NAMES
+        stdHashTable_FreeKey(hashmap, key);
+#else
         return 0;
+#endif
+    }
 
     v9 = &hashmap->buckets[hashmap->keyHashToIndex(key, hashmap->numBuckets)];
-    v10 = stdLinklist_GetTail(v9);
+    v10 = stdHashTable_GetBucketTail(v9);
 
     if ( v10->key )
     {
-        new_child = (stdLinklist *)std_pHS->alloc(sizeof(stdLinklist));
+        new_child = (tHashLink *)std_pHS->alloc(sizeof(tHashLink));
         if (!new_child)
             return 0;
-        //printf("Alloc to %p: %p\n", v9, new_child);
+        //printf("Alloc to %p: %p %s\n", v9, new_child, key);
 
         _memset(new_child, 0, sizeof(*new_child));
+#ifdef STDHASHTABLE_CRC32_KEYS
+        new_child->keyCrc32 = stdCrc32(key, strlen(key));
+#else
         new_child->key = key;
+#endif
         new_child->value = value;
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+        stdSingleLinklist_InsertAfter(v10, new_child);
+#else
         stdLinklist_InsertAfter(v10, new_child);
+#endif
     }
     else
     {
         _memset(v9, 0, sizeof(*v9));
+#ifdef STDHASHTABLE_CRC32_KEYS
+        v9->keyCrc32 = stdCrc32(key, strlen(key));
+#else
         v9->key = key;
+#endif
         v9->value = value;
+
+        //printf("Bin to %p: %p %s\n", v9, new_child, key);
     }
     return 1;
 }
 
 void* stdHashTable_GetKeyVal(stdHashTable *hashmap, const char *key)
 {
-    stdLinklist *i;
-    const char *key_iter;
-    stdLinklist *foundKey;
+    tHashLink *i;
+    tHashLink *foundKey;
 
-    if (!hashmap)
-        return 0;
+    if (!hashmap || !key) // Added: key nullptr check
+        return NULL;
+
+#ifdef STDHASHTABLE_CRC32_KEYS
+    uint32_t keyCrc32 = stdCrc32(key, strlen(key));
+#endif
 
     foundKey = 0;
     for ( i = &hashmap->buckets[hashmap->keyHashToIndex(key, hashmap->numBuckets)]; i; i = i->next )
     {
-      key_iter = (const char *)i->key;
-      if ( !key_iter )
-      {
-        foundKey = 0;
-        break;
-      }
-      if ( !_strcmp(key_iter, key) )
-      {
-        foundKey = i;
-        break;
-      }
+#ifdef STDHASHTABLE_CRC32_KEYS
+        if (!i->keyCrc32) {
+            foundKey = 0;
+            break;
+        }
+        if (i->keyCrc32 == keyCrc32) {
+            foundKey = i;
+            break;
+        }
+#else
+        const char* key_iter = (const char *)i->key;
+        if ( !key_iter )
+        {
+            foundKey = 0;
+            break;
+        }
+        if ( !_strcmp(key_iter, key) )
+        {
+            foundKey = i;
+            break;
+        }
+#endif
     }
 
-    if (foundKey)
+    if (foundKey) {
         return foundKey->value;
+    }
 
     return 0;
 }
 
-int stdHashTable_FreeKey(stdHashTable *hashtable, char *key)
+int stdHashTable_FreeKey(stdHashTable *hashtable, const char *key)
 {
     int v2;
-    stdLinklist *foundKey;
-    stdLinklist *i;
-    const char *key_iter;
-    stdLinklist *bucketTopKey;
+    tHashLink *foundKey;
+    tHashLink *i;
+    tHashLink *bucketTopKey;
 
-    if (!hashtable)
+    if (!hashtable || !key) // Added: key nullptr
         return 0;
 
+#ifdef STDHASHTABLE_CRC32_KEYS
+    uint32_t keyCrc32 = stdCrc32(key, strlen(key));
+#endif
+
+    tHashLink* beforeFoundKey = NULL; // added
     foundKey = 0;
     v2 = hashtable->keyHashToIndex(key, hashtable->numBuckets);
     for ( i = &hashtable->buckets[v2]; i; i = i->next )
     {
-        key_iter = i->key;
+#ifdef STDHASHTABLE_CRC32_KEYS
+        if (!i->keyCrc32) {
+            break;
+        }
+        if (i->keyCrc32 == keyCrc32)
+        {
+            foundKey = i;
+            break;
+        }
+#else
+        const char* key_iter = i->key;
         if ( !key_iter )
             break;
         if ( !_strcmp(key_iter, key) )
@@ -271,6 +347,8 @@ int stdHashTable_FreeKey(stdHashTable *hashtable, char *key)
             foundKey = i;
             break;
         }
+#endif
+        beforeFoundKey = i;
     }
 
     if ( !foundKey )
@@ -280,30 +358,119 @@ int stdHashTable_FreeKey(stdHashTable *hashtable, char *key)
     bucketTopKey = &hashtable->buckets[v2];
     if ( bucketTopKey == foundKey )
     {
-        stdLinklist* pNext = foundKey->next;
+        tHashLink* pNext = foundKey->next;
         if ( pNext )
         {
+#ifdef STDHASHTABLE_CRC32_KEYS
+            bucketTopKey->keyCrc32 = pNext->keyCrc32;
+#else
             bucketTopKey->key = pNext->key;
+#endif
             bucketTopKey->value = pNext->value;
 
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+            stdSingleLinklist_InsertReplace(pNext, bucketTopKey);
+#else
             stdLinklist_InsertReplace(pNext, bucketTopKey);
+#endif
             std_pHS->free(pNext);
         }
         else
         {
+#ifndef STDHASHTABLE_SINGLE_LINKLIST
             bucketTopKey->prev = NULL;
+#endif
             bucketTopKey->next = NULL;
+#ifdef STDHASHTABLE_CRC32_KEYS
+            bucketTopKey->keyCrc32 = 0;
+#else
             bucketTopKey->key = NULL;
+#endif
             bucketTopKey->value = 0;
         }
     }
     else
     {
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+        stdSingleLinklist_UnlinkChild(foundKey, beforeFoundKey); // Added: Moved to prevent freeing issues
+#else
         stdLinklist_UnlinkChild(foundKey); // Added: Moved to prevent freeing issues
+#endif
         std_pHS->free(foundKey);
     }
     return 1;
 }
+
+#ifdef STDHASHTABLE_CRC32_KEYS
+int stdHashTable_FreeKeyCrc32(stdHashTable *hashtable, uint32_t keyCrc32)
+{
+    int v2;
+    tHashLink *foundKey;
+    tHashLink *i;
+    tHashLink *bucketTopKey;
+
+    if (!hashtable)
+        return 0;
+
+    tHashLink* beforeFoundKey = NULL; // added
+    foundKey = 0;
+    //v2 = hashtable->keyHashToIndex(key, hashtable->numBuckets);
+    v2 = keyCrc32 % hashtable->numBuckets;
+    for ( i = &hashtable->buckets[v2]; i; i = i->next )
+    {
+        if (!i->keyCrc32) {
+            break;
+        }
+        if (i->keyCrc32 == keyCrc32)
+        {
+            foundKey = i;
+            break;
+        }
+        beforeFoundKey = i;
+    }
+
+    if ( !foundKey )
+        return 0;
+
+    //stdLinklist_UnlinkChild(foundKey); // Added: Moved to prevent freeing issues
+    bucketTopKey = &hashtable->buckets[v2];
+    if ( bucketTopKey == foundKey )
+    {
+        tHashLink* pNext = foundKey->next;
+        if ( pNext )
+        {
+            bucketTopKey->keyCrc32 = pNext->keyCrc32;
+            bucketTopKey->value = pNext->value;
+
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+            stdSingleLinklist_InsertReplace(pNext, bucketTopKey);
+#else
+            stdLinklist_InsertReplace(pNext, bucketTopKey);
+#endif
+            std_pHS->free(pNext);
+        }
+        else
+        {
+#ifndef STDHASHTABLE_SINGLE_LINKLIST
+            bucketTopKey->prev = NULL;
+#endif
+            bucketTopKey->next = NULL;
+            bucketTopKey->keyCrc32 = 0;
+            bucketTopKey->value = 0;
+        }
+    }
+    else
+    {
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+        stdSingleLinklist_UnlinkChild(foundKey, beforeFoundKey); // Added: Moved to prevent freeing issues
+#else
+        stdLinklist_UnlinkChild(foundKey); // Added: Moved to prevent freeing issues
+#endif
+        std_pHS->free(foundKey);
+    }
+    return 1;
+}
+#endif
 
 void stdHashTable_PrintDiagnostics(stdHashTable *hashtable)
 {
@@ -328,7 +495,11 @@ void stdHashTable_PrintDiagnostics(stdHashTable *hashtable)
             if ( hashtable->buckets[bucketIdx].key )
             {
                 ++numFilled;
+#ifdef STDHASHTABLE_SINGLE_LINKLIST
+                numChildren = stdSingleLinklist_NumChildren(&hashtable->buckets[bucketIdx]);
+#else
                 numChildren = stdLinklist_NumChildren(&hashtable->buckets[bucketIdx]);
+#endif
                 totalChildren += numChildren;
                 if ( numChildren > maxLookups )
                     maxLookups = numChildren;
@@ -339,16 +510,16 @@ void stdHashTable_PrintDiagnostics(stdHashTable *hashtable)
         while ( bucketIdx2 < hashtable->numBuckets );
     }
     std_pHS->debugPrint(" Maximum Lookups = %d\n", maxLookups);
-    std_pHS->debugPrint(" Filled Indices = %d/%d (%2.2f%%)\n", numFilled, hashtable->numBuckets, (float)numFilled * 100.0 / (float)hashtable->numBuckets);
-    std_pHS->debugPrint(" Average Lookup = %2.2f\n", (float)totalChildren / (float)numFilled);
-    std_pHS->debugPrint(" Weighted Lookup = %2.2f\n", (float)totalChildren / (float)hashtable->numBuckets);
+    std_pHS->debugPrint(" Filled Indices = %d/%d (%2.2f%%)\n", numFilled, hashtable->numBuckets, (flex_t)numFilled * 100.0 / (flex_t)hashtable->numBuckets); // FLEXTODO
+    std_pHS->debugPrint(" Average Lookup = %2.2f\n", (flex_t)totalChildren / (flex_t)numFilled); // FLEXTODO
+    std_pHS->debugPrint(" Weighted Lookup = %2.2f\n", (flex_t)totalChildren / (flex_t)hashtable->numBuckets); // FLEXTODO
     std_pHS->debugPrint("---------------------\n");
 }
 
 void stdHashTable_Dump(stdHashTable *hashtable)
 {
     int index;
-    stdLinklist *key_iter;
+    tHashLink *key_iter;
 
     std_pHS->debugPrint("HASHTABLE\n---------\n");
     index = 0;

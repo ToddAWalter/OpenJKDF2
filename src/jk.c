@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#ifdef LINUX
+#if defined(LINUX) || defined(TARGET_TWL)
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,6 +29,10 @@
 
 #if defined(TARGET_ANDROID)
 #include <ctype.h>
+#endif
+
+#ifdef TARGET_TWL
+#include <nds.h>
 #endif
 
 #include "General/stdString.h"
@@ -228,10 +232,10 @@ int (*jk_printf)(const char* fmt, ...) = (void*)0x426E60;
 #define LONG_MIN (~LONG_MAX)
 #endif
 
-long jk_wcstol(const wchar_t *restrict nptr, wchar_t **restrict endptr, int base)
+long jk_wcstol(const wchar_t */*restrict*/ nptr, wchar_t **/*restrict*/ endptr, int base)
 {
     const wchar_t *p = nptr, *endp;
-    _Bool is_neg = 0, overflow = 0;
+    int is_neg = 0, overflow = 0;
     /* Need unsigned so (-LONG_MIN) can fit in these: */
     unsigned long n = 0UL, cutoff;
     int cutlim;
@@ -299,8 +303,8 @@ long jk_wcstol(const wchar_t *restrict nptr, wchar_t **restrict endptr, int base
 
 int _memcmp (const void* str1, const void* str2, size_t count)
 {
-  register const unsigned char *s1 = (const unsigned char*)str1;
-  register const unsigned char *s2 = (const unsigned char*)str2;
+  /*register*/ const unsigned char *s1 = (const unsigned char*)str1;
+  /*register*/ const unsigned char *s2 = (const unsigned char*)str2;
 
   while (count-- > 0)
     {
@@ -333,17 +337,19 @@ char* _strcat(char* str, const char* concat)
     return str;
 }
 
+#if !defined(TARGET_TWL)
 void* _memset(void* ptr, int val, size_t num)
 {
-    int i;
+    size_t i;
     for (i = 0; i < num; i++)
     {
         *(uint8_t*)((char*)ptr+i) = val;
     }
     return ptr;
 }
+#endif
 
-#if !defined(MACOS) && !defined(WIN64_STANDALONE) && !defined(LINUX)
+#if !defined(MACOS) && !defined(WIN64_STANDALONE) && !defined(LINUX) && !defined(TARGET_TWL)
 void* memset(void* ptr, int val, size_t num)
 {
     int i;
@@ -388,9 +394,9 @@ int _strncmp(const char *s1, const char *s2, size_t n)
 }
 
 
-float _frand()
+flex_t _frand()
 {
-    return (float)(_rand() & 0x7FFF) * 0.000030518509;
+    return (flex_t)(_rand() & 0x7FFF) * 0.000030518509;
 }
 
 int __wcscmp(const wchar_t *a, const wchar_t *b)
@@ -682,6 +688,26 @@ void jk_exit(int a)
     exit(a);
 }
 
+#ifdef TARGET_TWL
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern void __real_exit(int res);
+void __wrap_exit(int res) {
+    while (1) {
+        scanKeys();
+        u16 keys_held = keysHeld();
+        if (!!(keys_held & KEY_A)) {
+            break;
+        }
+    }
+    __real_exit(res);
+}
+#ifdef __cplusplus
+}
+#endif
+#endif
+
 int jk_printf(const char* fmt, ...)
 {
     va_list args;
@@ -755,7 +781,7 @@ size_t _strspn(const char* a, const char* b)
     return strspn(a,b);
 }
 
-char* _strpbrk(const char* a, const char* b)
+const char* _strpbrk(const char* a, const char* b)
 {
     return strpbrk(a,b);
 }
@@ -769,7 +795,7 @@ size_t _wcslen(const wchar_t * str)
 
 char* _strstr(const char* a, const char* b)
 {
-    return strstr(a,b);
+    return strstr((char*)a,(char*)b);
 }
 
 int jk_snwprintf(wchar_t *a1, size_t a2, const wchar_t *fmt, ...)
@@ -875,11 +901,13 @@ char __tolower(char a)
 int msvc_sub_512D30(int a, int b)
 {
     assert(0);
+    return 0;
 }
 
 int jk_MessageBoxW(HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType)
 {
     assert(0);
+    return 0;
 }
 
 int stdGdi_GetHwnd()
@@ -924,7 +952,7 @@ void jk_EndPaint(HWND hWnd, const PAINTSTRUCT *lpPaint)
     assert(0);
 }
 
-int stdGdi_GetHInstance()
+HINSTANCE stdGdi_GetHInstance()
 {
     assert(0);
     return 0;
@@ -1079,7 +1107,7 @@ int __isspace(int a)
 
 int _iswspace(int a)
 {
-    unsigned char c = a & 0x7F;
+    unsigned char c = a & 0xFF;
     if (c == '\t' || c == '\n' ||
         c == '\v' || c == '\f' || c == '\r' || c == ' ') {
         return 1;

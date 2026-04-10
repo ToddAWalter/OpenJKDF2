@@ -36,7 +36,7 @@ void sithOverlayMap_ToggleMapDrawn()
 
 void sithOverlayMap_FuncIncrease()
 {
-    double v0; // st7
+    flex_d_t v0; // st7
 
     if ( sithOverlayMap_bShowMap )
     {
@@ -51,7 +51,7 @@ void sithOverlayMap_FuncIncrease()
 
 void sithOverlayMap_FuncDecrease()
 {
-    double v0; // st7
+    flex_d_t v0; // st7
 
     if ( sithOverlayMap_bShowMap )
     {
@@ -68,7 +68,7 @@ int sithOverlayMap_Render1(rdCanvas *canvas)
 {
     int result; // eax
     sithThing *v2; // ecx
-    float v3; // edx
+    flex_t v3; // edx
     int v5; // ecx
     sithAdjoin *i; // esi
     int v8; // eax
@@ -76,7 +76,7 @@ int sithOverlayMap_Render1(rdCanvas *canvas)
     rdVector3 a3; // [esp+4h] [ebp-1Ch] BYREF
     rdVector3 a1; // [esp+10h] [ebp-10h] BYREF
     int v12; // [esp+1Ch] [ebp-4h]
-    float canvasa; // [esp+28h] [ebp+8h]
+    flex_t canvasa; // [esp+28h] [ebp+8h]
 
     result = sithOverlayMap_bShowMap;
     if (!sithOverlayMap_bShowMap)
@@ -87,12 +87,12 @@ int sithOverlayMap_Render1(rdCanvas *canvas)
     rdSetLightingMode(1);
     sithOverlayMap_inst.world = sithWorld_pCurrentWorld;
     v2 = sithWorld_pCurrentWorld->playerThing;
-    v3 = canvas->screen_height_half;
+    v3 = canvas->half_screen_width;
     sithOverlayMap_pCanvas = canvas;
     sithOverlayMap_pPlayer = v2;
     v12 = (int)v3;
     sithOverlayMap_x1 = v12;
-    v12 = (int)canvas->screen_width_half;
+    v12 = (int)canvas->half_screen_height;
     a3.x = 0.0;
     a3.y = -sithCamera_currentCamera->viewPYR.y;
     sithOverlayMap_y1 = v12;
@@ -149,7 +149,7 @@ void sithOverlayMap_Render2(sithSector *sector)
     sithAdjoin *i; // esi
 
     if ( sector->renderTick != sithRender_lastRenderTick
-        && (sector->flags & SITH_SECTOR_AUTOMAPVISIBLE || g_mapModeFlags & 2))
+        && (sector->flags & SITH_SECTOR_AUTOMAPVISIBLE || g_mapModeFlags & MAPMODE_02))
     {
         sector->renderTick = sithRender_lastRenderTick;
         if ( (sector->flags & SITH_SECTOR_AUTOMAPHIDE) != 0 )
@@ -177,15 +177,15 @@ int sithOverlayMap_Render3(sithSector *pSector)
     int v9; // edi
     int v10; // ebx
     unsigned int v11; // ecx
-    float *v12; // edi
-    double v14; // st7
+    flex_t *v12; // edi
+    flex_d_t v14; // st7
     char v15; // c0
     int v16; // eax
     int v17; // ecx
     unsigned int v18; // ecx
     int v19; // cf
-    double v21; // st7
-    double v23; // st7
+    flex_d_t v21; // st7
+    flex_d_t v23; // st7
     int v24; // eax
     char v25; // cl
     sithThing *i; // ebx
@@ -196,7 +196,7 @@ int sithOverlayMap_Render3(sithSector *pSector)
     int v31; // edi
     int v32; // eax
     signed int result; // eax
-    float a4; // [esp+0h] [ebp-64h]
+    flex_t a4; // [esp+0h] [ebp-64h]
     rdVector3 v35; // [esp+1Ch] [ebp-48h] BYREF
     rdVector3 a1a; // [esp+28h] [ebp-3Ch] BYREF
     unsigned int v37; // [esp+34h] [ebp-30h]
@@ -205,7 +205,7 @@ int sithOverlayMap_Render3(sithSector *pSector)
     int v46; // [esp+58h] [ebp-Ch]
     int v47; // [esp+5Ch] [ebp-8h]
     sithSurface *a6; // [esp+60h] [ebp-4h]
-    float v49; // [esp+6Ch] [ebp+8h]
+    flex_t v49; // [esp+6Ch] [ebp+8h]
     int circleColor; // [esp+6Ch] [ebp+8h]
 
     int a6_;
@@ -329,26 +329,26 @@ LABEL_30:
         rdVector_Scale3(&tmp, &v2->center, sithOverlayMap_flMapSize);
         v37 = (int)tmp.y;
         v49 = v2->radius * sithOverlayMap_flMapSize;
-        v21 = (double)((int)(sithOverlayMap_x1 + (int)tmp.x));
-        if ( v21 >= (double)sithOverlayMap_pCanvas->xStart - v49 && v21 <= (double)sithOverlayMap_pCanvas->widthMinusOne + v49
-          || ((v23 = (double)((int)(sithOverlayMap_y1 - v37)), v23 < (double)sithOverlayMap_pCanvas->yStart - v49) || v23 > (double)sithOverlayMap_pCanvas->heightMinusOne + v49 ? (v24 = 0) : (v24 = 1),
+        v21 = (flex_d_t)((int)(sithOverlayMap_x1 + (int)tmp.x));
+        if ( v21 >= (flex_d_t)sithOverlayMap_pCanvas->xStart - v49 && v21 <= (flex_d_t)sithOverlayMap_pCanvas->widthMinusOne + v49
+          || ((v23 = (flex_d_t)((int)(sithOverlayMap_y1 - v37)), v23 < (flex_d_t)sithOverlayMap_pCanvas->yStart - v49) || v23 > (flex_d_t)sithOverlayMap_pCanvas->heightMinusOne + v49 ? (v24 = 0) : (v24 = 1),
               v24) )
         {
             v47 = 1;
         }
     }
 
-    if ( (g_mapModeFlags & 0x4C) != 0 )
+    if ( (g_mapModeFlags & (MAPMODE_40 | MAPMODE_08 | MAPMODE_04)) != 0 )
     {
         for ( i = v2->thingsList; i; i = i->nextThing )
         {
             if ( i != sithWorld_pCurrentWorld->cameraFocus && (i->thingflags & (SITH_TF_DISABLED|SITH_TF_10|SITH_TF_WILLBEREMOVED)) == 0 )
             {
-                v27 = (g_mapModeFlags & 0x40) != 0;
+                v27 = (g_mapModeFlags & MAPMODE_40) != 0;
                 v28 = i->type;
                 if ( v28 == SITH_THING_PLAYER )
                 {
-                    if ( (g_mapModeFlags & 0xC) != 0 )
+                    if (g_mapModeFlags & (MAPMODE_08 | MAPMODE_04))
                         v27 = 1;
                     if ( sithNet_isMulti && (sithNet_MultiModeFlags & MULTIMODEFLAG_TEAMS) != 0 )
                     {
@@ -363,7 +363,7 @@ LABEL_30:
                 }
                 else if ( v28 == SITH_THING_ACTOR )
                 {
-                    if ( (g_mapModeFlags & 8) != 0 )
+                    if (g_mapModeFlags & MAPMODE_08)
                         v27 = 1;
                     circleColor = sithOverlayMap_inst.config.actorColor & 0xFFFF;
                     a6_ = sithOverlayMap_inst.config.actorLineColor;
@@ -372,13 +372,13 @@ LABEL_30:
                 {
                     if ( v28 == SITH_THING_ITEM )
                     {
-                        if ( (g_mapModeFlags & 0x10) != 0 )
+                        if (g_mapModeFlags & MAPMODE_10)
                             v27 = 1;
                         v29 = sithOverlayMap_inst.config.itemColor;
                     }
                     else if ( v28 == SITH_THING_WEAPON )
                     {
-                        if ( (g_mapModeFlags & 0x20) != 0 )
+                        if (g_mapModeFlags & MAPMODE_20)
                             v27 = 1;
                         v29 = sithOverlayMap_inst.config.weaponColor;
                     }
@@ -517,7 +517,7 @@ LABEL_24:
             v14 = &v12->surfaces[0];
             while ( 1 )
             {
-                if ( (v14->surfaceFlags & SITH_SURFACE_FLOOR) != 0 )
+                if (v14->surfaceFlags & SITH_SURFACE_FLOOR)
                 {
                     v15 = v14->surfaceInfo.face.numVertices;
                     v16 = 0;

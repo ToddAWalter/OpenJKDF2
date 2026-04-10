@@ -155,10 +155,10 @@ static int jkGuiMultiTally_idkType;
 int jkGuiMultiTally_Show(int a1)
 {
     int result; // eax
-    unsigned int v2; // ebp
+    uint32_t v2; // ebp
     sithPlayerInfo* pPlayerInfoIter2; // ecx
     int v4; // edx
-    unsigned int v5; // eax
+    uint32_t v5; // eax
     jkGuiElement* pElementIter; // esi
     sithPlayerInfo* pPlayerInfoIter; // edi
     int v8; // ebp
@@ -171,7 +171,7 @@ int jkGuiMultiTally_Show(int a1)
     int v16; // eax
     int v17; // esi
     wchar_t *v18; // eax
-    unsigned int v19; // ecx
+    uint32_t v19; // ecx
     jkGuiElement* v20; // esi
     sithPlayerInfo* v21; // edi
     int v22; // ebp
@@ -187,10 +187,10 @@ int jkGuiMultiTally_Show(int a1)
     wchar_t *v32; // [esp-4h] [ebp-29EA4h]
     int v33; // [esp+10h] [ebp-29E90h]
     wchar_t *v34; // [esp+10h] [ebp-29E90h]
-    unsigned int v35; // [esp+14h] [ebp-29E8Ch]
-    unsigned int v36; // [esp+14h] [ebp-29E8Ch]
+    uint32_t v35; // [esp+14h] [ebp-29E8Ch]
+    uint32_t v36; // [esp+14h] [ebp-29E8Ch]
     int v37; // [esp+18h] [ebp-29E88h]
-    unsigned int v38; // [esp+18h] [ebp-29E88h]
+    uint32_t v38; // [esp+18h] [ebp-29E88h]
     wchar_t *v39; // [esp+1Ch] [ebp-29E84h]
     wchar_t wtmp5[1024]; // [esp+20h] [ebp-29E80h] BYREF
     wchar_t wtmp1[1024]; // [esp+820h] [ebp-29680h] BYREF
@@ -208,6 +208,10 @@ int jkGuiMultiTally_Show(int a1)
         if ( result == -1 )
             return result;
     }
+
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]);
+
     jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]->palette);
     jkGuiMultiTally_buttons[1].wstr = jkGui_sub_412ED0();
     jkGuiRend_MenuSetReturnKeyShortcutElement(&jkGuiMultiTally_menu, &jkGuiMultiTally_buttons[90]);
@@ -530,6 +534,10 @@ int jkGuiMultiTally_ShowTeamScores(int a1)
     jkGuiMultiTally_msStart = stdPlatform_GetTimeMsec();
     jkGuiMultiTally_idkType = a1;
     jkGuiMultiTally_dword_5568D0 = 0;
+
+    // Added
+    stdBitmap_EnsureData(jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]);
+    
     jkGui_SetModeMenu(jkGui_stdBitmaps[JKGUI_BM_BK_TALLY]->palette);
     jkGuiRend_SetVisibleAndDraw(&jkGuiMultiTally_buttons3[15], &jkGuiMultiTally_menu3, a1); // MOTS removed?
     jkGuiMultiTally_buttons3[1].wstr = jkGui_sub_412ED0();

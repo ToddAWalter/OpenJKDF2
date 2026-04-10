@@ -1,12 +1,12 @@
 #ifndef _STD3D_H
 #define _STD3D_H
 
+#include "types.h"
+#include "globals.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "types.h"
-#include "globals.h"
 
 #define std3D_Startup_ADDR (0x00429310)
 #define std3D_Shutdown_ADDR (0x00429390)
@@ -55,36 +55,7 @@ int std3D_HasAlpha();
 int std3D_HasModulateAlpha();
 int std3D_HasAlphaFlatStippled();
 
-#ifdef SDL2_RENDER
-int std3D_Startup();
-void std3D_Shutdown();
-int std3D_StartScene();
-int std3D_EndScene();
-void std3D_ResetRenderList();
-int std3D_RenderListVerticesFinish();
-void std3D_DrawRenderList();
-int std3D_SetCurrentPalette(rdColor24 *a1, int a2);
-void std3D_GetValidDimension(unsigned int inW, unsigned int inH, unsigned int *outW, unsigned int *outH);
-int std3D_DrawOverlay();
-void std3D_UnloadAllTextures();
-void std3D_AddRenderListTris(rdTri *tris, unsigned int num_tris);
-void std3D_AddRenderListLines(rdLine* lines, uint32_t num_lines);
-int std3D_AddRenderListVertices(D3DVERTEX *vertex_array, int count);
-void std3D_UpdateFrameCount(rdDDrawSurface *surface);
-void std3D_PurgeTextureCache();
-void std3D_Shutdown();
-int std3D_ClearZBuffer();
-int std3D_AddToTextureCache(stdVBuffer *vbuf, rdDDrawSurface *texture, int is_alpha_tex, int no_alpha);
-void std3D_DrawMenu();
-void std3D_DrawSceneFbo();
-void std3D_FreeResources();
-void std3D_InitializeViewport(rdRect *viewRect);
-int std3D_GetValidDimensions(int a1, int a2, int a3, int a4);
-int std3D_FindClosestDevice(uint32_t index, int a2);
-int std3D_SetRenderList(intptr_t a1);
-intptr_t std3D_GetRenderList();
-int std3D_CreateExecuteBuffer();
-#else
+#if !defined(SDL2_RENDER) && defined(WIN32)
 static int (*std3D_Startup)() = (void*)std3D_Startup_ADDR;
 static void (*std3D_Shutdown)() = (void*)std3D_Shutdown_ADDR;
 static int (*std3D_StartScene)() = (void*)std3D_StartScene_ADDR;
@@ -108,6 +79,41 @@ static int (*std3D_FindClosestDevice)(uint32_t index, int a2) = (void*)std3D_Fin
 int std3D_SetRenderList(intptr_t a1);
 intptr_t std3D_GetRenderList();
 static int (*std3D_CreateExecuteBuffer)() = (void*)std3D_CreateExecuteBuffer_ADDR;
+#else
+int std3D_Startup();
+void std3D_Shutdown();
+int std3D_StartScene();
+int std3D_EndScene();
+void std3D_ResetRenderList();
+MATH_FUNC int std3D_RenderListVerticesFinish();
+MATH_FUNC void std3D_DrawRenderList();
+int std3D_SetCurrentPalette(rdColor24 *a1, int a2);
+void std3D_GetValidDimension(unsigned int inW, unsigned int inH, unsigned int *outW, unsigned int *outH);
+int std3D_DrawOverlay();
+void std3D_UnloadAllTextures();
+#ifndef RDCACHE_RENDER_NGONS
+MATH_FUNC void std3D_AddRenderListTris(rdTri *tris, unsigned int num_tris);
+#else
+MATH_FUNC void std3D_AddRenderListNGons(rdNGon *tris, unsigned int num_ngons);
+#endif
+MATH_FUNC void std3D_AddRenderListLines(rdLine* lines, uint32_t num_lines);
+MATH_FUNC int std3D_AddRenderListVertices(D3DVERTEX *vertex_array, int count);
+void std3D_UpdateFrameCount(rdDDrawSurface *pTexture);
+void std3D_RemoveTextureFromCacheList(rdDDrawSurface *pCacheTexture); // TODO: mark the address for this
+void std3D_AddTextureToCacheList(rdDDrawSurface *pTexture); // TODO: mark the address for this
+int std3D_PurgeTextureCache(size_t size);
+void std3D_PurgeEntireTextureCache();
+int std3D_ClearZBuffer();
+int std3D_AddToTextureCache(stdVBuffer *vbuf, rdDDrawSurface *texture, int is_alpha_tex, int no_alpha);
+void std3D_DrawMenu();
+void std3D_DrawSceneFbo();
+void std3D_FreeResources();
+void std3D_InitializeViewport(rdRect *viewRect);
+int std3D_GetValidDimensions(int a1, int a2, int a3, int a4);
+int std3D_FindClosestDevice(uint32_t index, int a2);
+int std3D_SetRenderList(intptr_t a1);
+intptr_t std3D_GetRenderList();
+int std3D_CreateExecuteBuffer();
 #endif
 
 void std3D_PurgeUIEntry(int i, int idx);
@@ -119,8 +125,8 @@ void std3D_Screenshot(const char* pFpath);
 
 void std3D_ResetUIRenderList();
 int std3D_AddBitmapToTextureCache(stdBitmap *texture, int mipIdx, int is_alpha_tex, int no_alpha);
-void std3D_DrawUIBitmapRGBA(stdBitmap* pBmp, int mipIdx, float dstX, float dstY, rdRect* srcRect, float scaleX, float scaleY, int bAlphaOverwrite, uint8_t color_r, uint8_t color_g, uint8_t color_b, uint8_t color_a);
-void std3D_DrawUIBitmap(stdBitmap* pBmp, int mipIdx, float dstX, float dstY, rdRect* srcRect, float scale, int bAlphaOverwrite);
+void std3D_DrawUIBitmapRGBA(stdBitmap* pBmp, int mipIdx, flex_t dstX, flex_t dstY, rdRect* srcRect, flex_t scaleX, flex_t scaleY, int bAlphaOverwrite, uint8_t color_r, uint8_t color_g, uint8_t color_b, uint8_t color_a);
+void std3D_DrawUIBitmap(stdBitmap* pBmp, int mipIdx, flex_t dstX, flex_t dstY, rdRect* srcRect, flex_t scale, int bAlphaOverwrite);
 void std3D_DrawUIClearedRect(uint8_t palIdx, rdRect* dstRect);
 void std3D_DrawUIClearedRectRGBA(uint8_t color_r, uint8_t color_g, uint8_t color_b, uint8_t color_a, rdRect* dstRect);
 int std3D_IsReady();

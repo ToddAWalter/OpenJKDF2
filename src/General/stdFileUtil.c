@@ -2,9 +2,11 @@
 
 #include "stdPlatform.h"
 #include "General/stdFnames.h"
+#include "General/stdString.h"
 #include "jk.h"
 
-#ifdef PLATFORM_POSIX 
+#ifdef PLATFORM_POSIX
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,17 +16,24 @@
 #endif
 #include <sys/stat.h>
 #ifndef _WIN32
+#ifndef TARGET_TWL
 #include <ftw.h>
+#endif
 #endif
 
 #include "external/fcaseopen/fcaseopen.h"
 #endif
 
-stdFileSearch* stdFileUtil_NewFind(char *path, int a2, char *extension)
+#ifdef TARGET_TWL
+#include <errno.h>
+#endif
+
+stdFileSearch* stdFileUtil_NewFind(const char *path, int a2, const char *extension)
 {
     stdFileSearch* search = (stdFileSearch *)std_pHS->alloc(sizeof(stdFileSearch));
-    if ( !search )
+    if ( !search ) {
         return search;
+    }
     _memset(search, 0, sizeof(stdFileSearch));
 
     if ( a2 < 0 )
@@ -41,13 +50,15 @@ stdFileSearch* stdFileUtil_NewFind(char *path, int a2, char *extension)
     _sprintf(std_genBuffer, "*.%s", extension);
     stdFnames_MakePath(search->path, 128, path, std_genBuffer);
     
-#ifdef LINUX
+#ifdef FS_POSIX
     for (int i = 0; i < strlen(search->path); i++)
     {
         if (search->path[i] == '\\')
             search->path[i] = '/';
     }
 #endif
+
+    stdPlatform_Printf("OpenJKDF2: %s %s\n", __func__, search->path);
     
     return search;
 }
@@ -97,6 +108,62 @@ void stdFileUtil_DisposeFind(stdFileSearch *search)
     }
 }
 
+void stdFileUtil_FindReset(stdFileSearch *search)
+{
+    if ( search && search->isNotFirst )
+    {
+        __findclose(search->field_88);
+    }
+    if ( search )
+    {
+        search->isNotFirst = 0;
+    }
+}
+
+int stdFileUtil_FindQuick(const char *path, int type, const char *extension, stdFileSearchResult *result)
+{
+    stdFileSearch *search = stdFileUtil_NewFind(path, type, extension);
+    if ( !search )
+        return 0;
+
+    int found = stdFileUtil_FindNext(search, result);
+    stdFileUtil_DisposeFind(search);
+    return found;
+}
+
+int stdFileUtil_CountMatches(const char *path, int type, const char *extension)
+{
+    stdFileSearchResult result;
+    stdFileSearch *search = stdFileUtil_NewFind(path, type, extension);
+    if ( !search )
+        return 0;
+
+    int count = 0;
+    while ( stdFileUtil_FindNext(search, &result) )
+    {
+        count++;
+    }
+    stdFileUtil_DisposeFind(search);
+    return count;
+}
+
+int stdFileUtil_DirExists(const char *path)
+{
+    struct _WIN32_FIND_DATAA findData;
+    HANDLE h = FindFirstFileA(path, (LPWIN32_FIND_DATAA)&findData);
+    if ( h != INVALID_HANDLE_VALUE )
+    {
+        FindClose(h);
+        return 1;
+    }
+    return 0;
+}
+
+void stdFileUtil_RmDir(const char *path)
+{
+    RemoveDirectoryA(path);
+}
+
 // https://stackoverflow.com/questions/1517685/recursive-createdirectory
 int TryCreateDirectory(LPCSTR lpPathName)
 {
@@ -109,7 +176,7 @@ int TryCreateDirectory(LPCSTR lpPathName)
     {
         size_t i;
 
-        (p=strncpy((char *)malloc(1+i), lpPathName, i=p-lpPathName))[i] = '\0';
+        (p=strncpy((char *)std_pHS->alloc(1+i), lpPathName, i=p-lpPathName))[i] = '\0';
         b = TryCreateDirectory(p);
         free(p);
         b = b ? CreateDirectoryA(lpPathName, 0) : 0;
@@ -172,7 +239,7 @@ LABEL_7:
         return RemoveDirectoryA(lpPathName);
     return v2;
 }
-#endif
+#endif // WIN32
 
 #ifdef PLATFORM_POSIX
 
@@ -196,7 +263,7 @@ int stdFileUtil_Deltree(const char* lpPathName)
     if (len > 512) {
         len = 512;
     }
-    _strncpy(tmp, lpPathName, sizeof(tmp));
+    stdString_SafeStrCopy(tmp, lpPathName, sizeof(tmp));
 
 #ifndef WIN64_STANDALONE
     for (int i = 0; i < len; i++)
@@ -207,15 +274,57 @@ int stdFileUtil_Deltree(const char* lpPathName)
     }
 #endif
 
+#ifndef TARGET_TWL
     nftw(tmp, rmFiles, 10, FTW_DEPTH|FTW_MOUNT|FTW_PHYS);
+#else
+    DIR *dir;
+    struct dirent *entry;
+    char filepath[256];
+    struct stat statbuf;
+    int result = 1;
+
+    dir = opendir(tmp);
+    if (!dir)
+        return 0;
+
+    while ((entry = readdir(dir)) != NULL && result == 1) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        snprintf(filepath, sizeof(filepath), "%s/%s", tmp, entry->d_name);
+
+        if (stat(filepath, &statbuf) == -1) { // use lstat on non-DSi
+            result = 0;
+            break;
+        }
+
+        if (S_ISDIR(statbuf.st_mode)) {
+            result = stdFileUtil_Deltree(filepath);
+        } else {
+            if (unlink(filepath) != 0) {
+                result = 0;
+                break;
+            }
+        }
+    }
+
+    closedir(dir);
+
+    if (result) {
+        if (rmdir(tmp) != 0)
+            result = 0;
+    }
+
+    return result;
+#endif
 
     //rmdir(tmp);
     return 0;
 }
 #endif // _WIN32
-#endif
+#endif // PLATFORM_POSIX
 
-#ifdef LINUX
+#if defined(PLATFORM_POSIX) && !defined(WIN32)
 
 static char* search_ext = "";
 
@@ -263,7 +372,14 @@ int stdFileUtil_FindNext(stdFileSearch *a1, stdFileSearchResult *a2)
     }
     else
     {
+#ifdef TARGET_TWL
+        getcwd(tmp, 128-1);
+        //strncpy(tmp, pcwd, 128-1);
+        strncat(tmp, "/", 128-1);
+        strncat(tmp, a1->path, 128-1);
+#else
         strncpy(tmp, a1->path, 128);
+#endif
 
         // Clear out extension
         // TODO: ehhhh
@@ -286,10 +402,16 @@ int stdFileUtil_FindNext(stdFileSearch *a1, stdFileSearchResult *a2)
                 tmp[i] = '/';
             }
         }
+        if (tmp[strlen(tmp)-1] = '/') {
+            tmp[strlen(tmp)-1] = 0;
+        }
 
+#ifdef TARGET_TWL
+        errno = 0;
+#endif
         a1->num_found = scandir(tmp, &a1->namelist, search_ext ? parse_ext : NULL, alphasort);
         
-        if (!a1->namelist) return 0;
+        if (!a1->namelist || a1->num_found <= 0) return 0;
         
         iter = a1->namelist[2];
         a1->isNotFirst = 2;
@@ -318,6 +440,59 @@ void stdFileUtil_DisposeFind(stdFileSearch *search)
 
         std_pHS->free(search);
     }
+}
+
+void stdFileUtil_FindReset(stdFileSearch *search)
+{
+    if ( search )
+    {
+        for (int i = 0; i < search->num_found; i++)
+        {
+            free(search->namelist[i]);
+        }
+        free(search->namelist);
+        search->namelist = NULL;
+        search->isNotFirst = 0;
+        search->num_found = 0;
+    }
+}
+
+int stdFileUtil_FindQuick(const char *path, int type, const char *extension, stdFileSearchResult *result)
+{
+    stdFileSearch *search = stdFileUtil_NewFind(path, type, extension);
+    if ( !search )
+        return 0;
+
+    int found = stdFileUtil_FindNext(search, result);
+    stdFileUtil_DisposeFind(search);
+    return found;
+}
+
+int stdFileUtil_CountMatches(const char *path, int type, const char *extension)
+{
+    stdFileSearchResult result;
+    stdFileSearch *search = stdFileUtil_NewFind(path, type, extension);
+    if ( !search )
+        return 0;
+
+    int count = 0;
+    while ( stdFileUtil_FindNext(search, &result) )
+    {
+        count++;
+    }
+    stdFileUtil_DisposeFind(search);
+    return count;
+}
+
+int stdFileUtil_DirExists(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+void stdFileUtil_RmDir(const char *path)
+{
+    rmdir(path);
 }
 
 // https://stackoverflow.com/questions/2336242/recursive-mkdir-system-call-on-unix
@@ -386,4 +561,4 @@ int stdFileUtil_DelFile(char* lpFileName)
 
     return 1;
 }
-#endif
+#endif // PLATFORM_POSIX

@@ -29,14 +29,14 @@ static int sithControl_curDebugCam = 0;
 static wchar_t sithControl_debugWStrTmp[256];
 
 // MOTS added
-static float sithControl_008d7f44 = 0.0;
+static flex_t sithControl_008d7f44 = 0.0;
 static int sithControl_008d7f4c = 0;
 static int sithControl_008d7f50 = 0;
 static int sithControl_008d7f54 = 0;
 static int sithControl_008d7f58 = 0;
 static int sithControl_008d7f5c = 0;
 
-static const char *sithControl_aFunctionStrs[74] =
+static const char *sithControl_aFunctionStrs[INPUT_FUNC_MAX+1] =
 {
     "FORWARD",
     "TURN",
@@ -111,8 +111,16 @@ static const char *sithControl_aFunctionStrs[74] =
     "ACTIVATE28",
     "ACTIVATE29",
     "ACTIVATE30",
-    "ACTIVATE31"
+    "ACTIVATE31",
+#ifdef QOL_IMPROVEMENTS
+    "USELASTSELECTED", // Common button for both items and force power usage for controllers
+#endif // QOL_IMPROVEMENTS
+    "INPUT_FUNC_MAX"
 };
+
+#ifdef QOL_IMPROVEMENTS
+int sithControl_lastSelected = LAST_SELECTED_ITEM;
+#endif // QOL_IMPROVEMENTS
 
 int sithControl_Startup()
 {
@@ -122,11 +130,16 @@ int sithControl_Startup()
     if ( stdControl_Startup() )
     {
         sithControl_InitFuncToControlType();
-        _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(stdControlKeyInfo) * 74);
+        _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(stdControlKeyInfo) * INPUT_FUNC_MAX);
         stdControl_Reset();
         sithControl_bInitted = 1;
         return 1;
     }
+
+#ifdef QOL_IMPROVEMENTS
+    sithControl_lastSelected = LAST_SELECTED_ITEM;
+#endif // QOL_IMPROVEMENTS
+
     return 0;
 }
 
@@ -153,7 +166,8 @@ int sithControl_Shutdown()
 
     memset(sithControl_aHandlers, 0, sizeof(sithControl_handler_t) * SITHCONTROL_NUM_HANDLERS);
     sithControl_numHandlers = 0;
-#endif
+    sithControl_lastSelected = LAST_SELECTED_ITEM;
+#endif // QOL_IMPROVEMENTS
 
     sithControl_bInitted = 0;
     return 1;
@@ -182,6 +196,17 @@ void sithControl_Close()
         if ( stdControl_Close() )
             sithControl_bOpened = 0;
     }
+}
+
+void sithControl_SetFuncType(int funcIdx, uint32_t flags)
+{
+    sithControl_inputFuncToControlType[funcIdx] = flags | 3;
+}
+
+void sithControl_ClearAllBindings()
+{
+    _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(sithControl_aInputFuncToKeyinfo));
+    stdControl_Reset();
 }
 
 void sithControl_InitFuncToControlType()
@@ -227,12 +252,15 @@ void sithControl_InitFuncToControlType()
     sithControl_inputFuncToControlType[INPUT_FUNC_GAMMA] = 4 | 1;
     sithControl_inputFuncToControlType[INPUT_FUNC_SCREENSHOT] = 4 | 1;
     sithControl_inputFuncToControlType[INPUT_FUNC_TALLY] = 4 | 1;
-    if ( (g_debugmodeFlags & 0x100) != 0 )
+    if ( (g_debugmodeFlags & DEBUGFLAG_IN_EDITOR) != 0 )
         sithControl_inputFuncToControlType[INPUT_FUNC_DEBUG] = 4 | 1;
+#ifdef QOL_IMPROVEMENTS
+    sithControl_inputFuncToControlType[INPUT_FUNC_USELASTSELECTED] = 4 | 1;
+#endif
 }
 
 // MOTS altered
-void sithControl_Tick(float deltaSecs, int deltaMs)
+void sithControl_Tick(flex_t deltaSecs, int deltaMs)
 {
     if ( !sithControl_bOpened )
         return;
@@ -245,9 +273,7 @@ void sithControl_Tick(float deltaSecs, int deltaMs)
     {
         if ( sithCamera_currentCamera == &sithCamera_cameras[4] )
         {
-LABEL_13:
             sithCamera_DoIdleAnimation();
-            goto LABEL_14;
         }
     }
     else
@@ -257,13 +283,20 @@ LABEL_13:
             sithControl_msIdle += deltaMs;
             if ( sithControl_msIdle > 30000 && sithCamera_currentCamera != &sithCamera_cameras[4] )
                 sithCamera_SetCurrentCamera(&sithCamera_cameras[4]);
-            goto LABEL_14;
+#ifdef QOL_IMPROVEMENTS
+            else if (sithControl_msIdle < 30000 && sithCamera_currentCamera == &sithCamera_cameras[4] ) {
+                sithCamera_DoIdleAnimation();
+            }
+#endif
+
         }
-        sithControl_msIdle = 0;
-        if ( sithCamera_currentCamera == &sithCamera_cameras[4] )
-            goto LABEL_13;
+        else {
+            sithControl_msIdle = 0;
+            if ( sithCamera_currentCamera == &sithCamera_cameras[4] ) {
+                sithCamera_DoIdleAnimation();
+            }
+        }
     }
-LABEL_14:
     if ( sithWorld_pCurrentWorld->playerThing && sithControl_numHandlers > 0 )
     {
 #ifndef FIXED_TIMESTEP_PHYS
@@ -297,7 +330,7 @@ stdControlKeyInfoEntry* sithControl_MapFunc(int funcIdx, int keyNum, int flags)
     int a3a; // [esp+1Ch] [ebp+Ch]
 
     v3 = flags;
-    v3 = flags & ~9 | 2;
+    v3 = flags & ~(8|1) | 2;
     a3a = v3;
     //printf("1] Map %x\n", keyNum);
     if ( (sithControl_inputFuncToControlType[funcIdx] & 1) != 0 && sithControl_aInputFuncToKeyinfo[funcIdx].numEntries != 8 )
@@ -316,7 +349,7 @@ LABEL_9:
                 goto LABEL_14;
         }
         v7 = v5->aEntries;
-        while ( (v7->flags & 2) == 0 || v7->dxKeyNum != keyNum )
+        while ( (v7->flags & INPUT_MAPPING_FLAG_DXKEY) == 0 || v7->dxKeyNum != keyNum )
         {
             ++v6;
             ++v7;
@@ -379,7 +412,7 @@ stdControlKeyInfoEntry* sithControl_MapAxisFunc(int funcIdx, int dxKeyNum, uint3
         return 0;
     if ( sithControl_aInputFuncToKeyinfo[funcIdx].numEntries == 8 )
         return 0;
-    if ( (v4 & 2) != 0 )
+    if ( (v4 & INPUT_MAPPING_FLAG_DXKEY) != 0 )
     {
         v7 = 0;
         v8 = sithControl_aInputFuncToKeyinfo;
@@ -526,12 +559,12 @@ int sithControl_ReadConf()
     uint32_t v14; // eax
     stdControlKeyInfoEntry *v15; // ecx
     stdControlKeyInfoEntry *v16; // ecx
-    float v18; // [esp+10h] [ebp-10h]
+    flex_t v18; // [esp+10h] [ebp-10h]
     unsigned int v19; // [esp+14h] [ebp-Ch] BYREF
     unsigned int dxKeyNum_; // [esp+18h] [ebp-8h]
     int v21; // [esp+1Ch] [ebp-4h]
 
-    _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(stdControlKeyInfo) * 74);
+    _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(stdControlKeyInfo) * INPUT_FUNC_MAX);
     stdControl_Reset();
     if ( !stdConffile_ReadArgs()
       || !stdConffile_entry.numArgs
@@ -561,7 +594,7 @@ int sithControl_ReadConf()
                 if ( stdConffile_entry.numArgs > 4u )
                     v18 = _atof(stdConffile_entry.args[4].value);
                 v3 = v19;
-                if ( (v19 & 2) != 0 )
+                if ( (v19 & INPUT_MAPPING_FLAG_DXKEY) != 0 )
                 {
                     if ( dxKeyNum <= JK_NUM_KEYS )
                     {
@@ -586,7 +619,7 @@ LABEL_24:
                                         goto LABEL_30;
                                 }
                                 v8 = v6->aEntries;
-                                while ( (v8->flags & 2) == 0 || v8->dxKeyNum != dxKeyNum )
+                                while ( (v8->flags & INPUT_MAPPING_FLAG_DXKEY) == 0 || v8->dxKeyNum != dxKeyNum )
                                 {
                                     ++v7;
                                     ++v8;
@@ -704,13 +737,13 @@ void sithControl_FinishRead()
     stdControl_FinishRead();
 }
 
-float sithControl_GetAxis2(int axisNum)
+flex_t sithControl_GetAxisTimeCorrected(int axisNum)
 {
     uint32_t v1; // ebp
     stdControlKeyInfoEntry *entryIter; // esi
     int v3; // ebx
-    double v4; // st7
-    float v6; // [esp+10h] [ebp-4h]
+    flex_d_t v4; // st7
+    flex_t v6; // [esp+10h] [ebp-4h]
 
     v1 = 0;
     v6 = 0.0;
@@ -726,8 +759,13 @@ float sithControl_GetAxis2(int axisNum)
                 {
                     v4 = stdControl_ReadAxis(entryIter->dxKeyNum);
 LABEL_11:
-                    if ( (entryIter->flags & 8) != 0 )
+                    if ( (entryIter->flags & INPUT_MAPPING_FLAG_RAW_AXIS) != 0 ) {
+#ifdef QOL_IMPROVEMENTS
+                        v4 = v4 * 25.0;
+#else
                         v4 = v4 * sithTime_TickHz;
+#endif
+                    }
                     if ( v4 != 0.0 )
                     {
                         if ( (v3 & 4) != 0 )
@@ -765,13 +803,13 @@ LABEL_23:
     return v6;
 }
 
-float sithControl_ReadAxisStuff(int funcIdx)
+flex_t sithControl_GetAxisNonRaw(int funcIdx)
 {
     uint32_t v1; // ebp
     stdControlKeyInfoEntry *v2; // esi
     int v3; // ebx
-    double v4; // st7
-    float v6; // [esp+8h] [ebp-4h]
+    flex_d_t v4; // st7
+    flex_t v6; // [esp+8h] [ebp-4h]
 
     v1 = 0;
     v6 = 0.0;
@@ -781,9 +819,9 @@ float sithControl_ReadAxisStuff(int funcIdx)
         do
         {
             v3 = v2->flags;
-            if ( (v3 & 8) == 0 )
+            if ( (v3 & INPUT_MAPPING_FLAG_RAW_AXIS) == 0 )
             {
-                if ( (v3 & 1) != 0 )
+                if ( (v3 & INPUT_MAPPING_FLAG_AXIS) != 0 )
                 {
                     if ( (sithWeapon_controlOptions & 0x20) == 0 || v2->dxKeyNum >= AXIS_MOUSE_X )
                     {
@@ -797,7 +835,7 @@ float sithControl_ReadAxisStuff(int funcIdx)
 LABEL_12:
                     if ( v4 != 0.0 )
                     {
-                        if ( (v3 & 4) != 0 )
+                        if ( (v3 & INPUT_MAPPING_FLAG_AXIS_REVERSED) != 0 )
                             v4 = -v4;
                         if ( v2->binaryAxisVal != 0.0 )
                             v4 = v4 * v2->binaryAxisVal;
@@ -815,14 +853,14 @@ LABEL_18:
     return v6;
 }
 
-float sithControl_GetAxis(int funcIdx)
+flex_t sithControl_GetAxisNonTimeCorrectedRaw(int funcIdx)
 {
     stdControlKeyInfoEntry *v1; // edi
     stdControlKeyInfoEntry *v2; // esi
     uint32_t v3; // ebp
     int v4; // ebx
-    double v5; // st7
-    float v7; // [esp+4h] [ebp-4h]
+    flex_d_t v5; // st7
+    flex_t v7; // [esp+4h] [ebp-4h]
 
     v7 = 0.0;
     v1 = sithControl_aInputFuncToKeyinfo[funcIdx].aEntries;
@@ -835,7 +873,7 @@ float sithControl_GetAxis(int funcIdx)
             v4 = v2->flags;
             if ( (v4 & 8) != 0 && ((sithWeapon_controlOptions & 0x20) == 0 || v1->dxKeyNum >= AXIS_MOUSE_X) )
             {
-                v5 = (double)stdControl_ReadAxisRaw(v2->dxKeyNum);
+                v5 = (flex_d_t)stdControl_ReadAxisRaw(v2->dxKeyNum);
                 if ( (v4 & 4) != 0 )
                     v5 = -v5;
                 if ( v2->binaryAxisVal != 0.0 )
@@ -860,26 +898,31 @@ void sithControl_AddInputHandler(sithControl_handler_t a1)
     }
 }
 
+#ifdef QOL_IMPROVEMENTS
+int sithControl_buttonPressDebounce = 0;
+#endif
+
 // MOTS altered
-int sithControl_HandlePlayer(sithThing *player, float deltaSecs)
+int sithControl_HandlePlayer(sithThing *player, flex_t deltaSecs)
 {
     int v3; // esi
     int result; // eax
-    double v7; // st7
-    double v8; // st6
-    double v9; // st7
-    double v10; // st5
-    double v11; // st4
-    double v12; // st3
-    double v13; // st4
-    double v14; // st3
-    double v15; // rt0
-    double v16; // st3
+    flex_d_t v7; // st7
+    flex_d_t v8; // st6
+    flex_d_t v9; // st7
+    flex_d_t v10; // st5
+    flex_d_t v11; // st4
+    flex_d_t v12; // st3
+    flex_d_t v13; // st4
+    flex_d_t v14; // st3
+    flex_d_t v15; // rt0
+    flex_d_t v16; // st3
     wchar_t *v17; // eax
-    float v18; // [esp+8h] [ebp-40h]
+    flex_t v18; // [esp+8h] [ebp-40h]
     rdVector3 a3a; // [esp+Ch] [ebp-3Ch] BYREF
     rdMatrix34 a; // [esp+18h] [ebp-30h] BYREF
     int input_read;
+    int tmp;
 
     //g_debugmodeFlags |= 0x100;
 
@@ -905,7 +948,7 @@ int sithControl_HandlePlayer(sithThing *player, float deltaSecs)
         goto debug_controls;
     }
 
-    if ( (g_debugmodeFlags & 0x100) == 0 || !sithControl_ReadFunctionMap(INPUT_FUNC_DEBUG, 0) )
+    if ( (g_debugmodeFlags & DEBUGFLAG_IN_EDITOR) == 0 || !sithControl_ReadFunctionMap(INPUT_FUNC_DEBUG, 0) )
     {
         if (player->thingflags & SITH_TF_DEAD)
         {
@@ -931,6 +974,21 @@ int sithControl_HandlePlayer(sithThing *player, float deltaSecs)
                     sithConsole_AlertSound();
                     sithControl_death_msgtimer = 0;
 LABEL_39:
+#ifdef QOL_IMPROVEMENTS
+                    // HACK: Prevent exploding yourself on reloading
+                    tmp = sithControl_ReadFunctionMap(INPUT_FUNC_ACTIVATE, &input_read);
+                    if (!sithControl_buttonPressDebounce && (input_read != 0 || (sithControl_ReadFunctionMap(INPUT_FUNC_FIRE1, &input_read), input_read != 0) ))
+                    {
+                        sithControl_buttonPressDebounce = 1;
+                    }
+                    else if (sithControl_buttonPressDebounce && tmp == 0 && !sithControl_ReadFunctionMap(INPUT_FUNC_FIRE1, &input_read) )
+                    {
+                        sithControl_buttonPressDebounce = 0;
+                        sithPlayer_debug_loadauto(player);
+                        return 0;
+                    }
+                    return 0;
+#else
                     sithControl_ReadFunctionMap(INPUT_FUNC_ACTIVATE, &input_read);
                     if ( input_read != 0 || (sithControl_ReadFunctionMap(INPUT_FUNC_FIRE1, &input_read), input_read != 0) )
                     {
@@ -938,11 +996,15 @@ LABEL_39:
                         return 0;
                     }
                     return 0;
+#endif
                 }
             }
         }
         else
         {
+#ifdef QOL_IMPROVEMENTS
+            sithControl_buttonPressDebounce = 0;
+#endif
             if (!Main_bMotsCompat) {
                 sithControl_008d7f44 = 1.0;
                 sithControl_PlayerLook(player, deltaSecs);
@@ -977,6 +1039,9 @@ LABEL_39:
     }
 
 debug_controls:
+#ifdef QOL_IMPROVEMENTS
+        sithControl_buttonPressDebounce = 0;
+#endif
     if ( player->moveType == SITH_MT_PHYSICS )
         sithPhysics_ThingStop(player);
 
@@ -1054,12 +1119,12 @@ debug_controls:
         }
 #ifdef QOL_IMPROVEMENTS
         // Scale appropriately to high framerates
-        v18 = deltaSecs * 90.0 * (sithTime_TickHz / 50.0);
+        v18 = deltaSecs * 90.0;
 #else
         v18 = deltaSecs * 90.0;
 #endif
-        a3a.y = v18 * sithControl_ReadAxisStuff(INPUT_FUNC_TURN);
-        a3a.x = v18 * sithControl_ReadAxisStuff(INPUT_FUNC_PITCH);
+        a3a.y = v18 * sithControl_GetAxisNonRaw(INPUT_FUNC_TURN);
+        a3a.x = v18 * sithControl_GetAxisNonRaw(INPUT_FUNC_PITCH); // I really need to sort out what needs the adjustments and what doesn't
         a3a.z = 0.0;
         if (!rdVector_IsZero3(&a3a))
         {
@@ -1068,9 +1133,9 @@ debug_controls:
             rdVector_Normalize3Acc(&sithControl_vec3_54A570);
         }
 #ifdef QOL_IMPROVEMENTS
-        v7 = -sithControl_GetAxis2(0) * (deltaSecs * 0.1) * (sithTime_TickHz / 50.0);
+        v7 = -sithControl_GetAxisTimeCorrected(INPUT_FUNC_FORWARD) * (deltaSecs * 0.1);// * (sithTime_TickHz / 50.0);
 #else
-        v7 = -sithControl_GetAxis2(0) * (deltaSecs * 0.1);
+        v7 = -sithControl_GetAxisTimeCorrected(INPUT_FUNC_FORWARD) * (deltaSecs * 0.1);
 #endif
         if ( v7 != 0.0 )
         {
@@ -1119,15 +1184,17 @@ debug_controls:
     return result;
 }
 
-void sithControl_PlayerLook(sithThing *player, float deltaSecs)
+void sithControl_PlayerLook(sithThing *player, flex_t deltaSecs)
 {
     int v3; // edi
-    double v5; // st7
-    double v6; // st7
-    double v9;
-    double v8; // st6
-    double v12; // st6
+    flex_d_t v5; // st7
+    flex_d_t v6; // st7
+    flex_d_t v9;
+    flex_d_t v8; // st6
+    flex_d_t v12; // st6
     rdVector3 a2; // [esp+8h] [ebp-Ch] BYREF
+
+    flex_t local_10 = 0.0;
 
     v3 = 0;
     if ( (player->type == SITH_THING_ACTOR || player->type == SITH_THING_PLAYER) && deltaSecs != 0.0 )
@@ -1137,11 +1204,12 @@ void sithControl_PlayerLook(sithThing *player, float deltaSecs)
             if ( (sithWeapon_controlOptions & 4) == 0 && !sithControl_ReadFunctionMap(INPUT_FUNC_MLOOK, 0) )
                 goto LABEL_20;
 
-            float local_10 = 0.0;
+            
             a2 = player->actorParams.eyePYR;
 
             // Map directly to axis, the value we have is an angular velocity
-            v5 = sithControl_GetAxis(INPUT_FUNC_PITCH);
+            v5 = sithControl_GetAxisNonTimeCorrectedRaw(INPUT_FUNC_PITCH);
+
             if ( v5 != 0.0 )
             {
                 v3 = 1;
@@ -1150,14 +1218,14 @@ void sithControl_PlayerLook(sithThing *player, float deltaSecs)
             }
 
             // Not mapped directly to axis, accomodate w/ deltaSecs
-            v6 = sithControl_ReadAxisStuff(INPUT_FUNC_PITCH);
+            v6 = sithControl_GetAxisNonRaw(INPUT_FUNC_PITCH);
             if ( v6 != 0.0 )
             {
                 v3 = 1;
 #ifdef QOL_IMPROVEMENTS
                 // Scale appropriately to high framerates
-                a2.x += v6 * sithControl_008d7f44 * 90.0 * deltaSecs * (sithTime_TickHz / 50.0);
-                local_10 += v6 * sithControl_008d7f44 * 90.0 * deltaSecs * (sithTime_TickHz / 50.0);
+                a2.x += v6 * sithControl_008d7f44 * 90.0 * deltaSecs;// * (sithTime_TickHz / 50.0);
+                local_10 += v6 * sithControl_008d7f44 * 90.0 * deltaSecs;// * (sithTime_TickHz / 50.0);
 #else
                 a2.x += v6 * sithControl_008d7f44 * 90.0 * deltaSecs;
                 local_10 += v6 * sithControl_008d7f44 * 90.0 * deltaSecs;
@@ -1215,14 +1283,14 @@ void sithControl_PlayerMovementMots(sithThing *player)
 {
     uint32_t uVar1;
     int iVar2;
-    float fVar3;
-    float fVar4;
-    float local_8;
+    flex_t fVar3;
+    flex_t fVar4;
+    flex_t local_8;
     int local_4;
     sithThing *thing;
     
     thing = player;
-    float move_multiplier = 1.0;
+    flex_t move_multiplier = 1.0;
     if (((sithWeapon_controlOptions & 2) != 0) ||
        (iVar2 = sithControl_ReadFunctionMap(INPUT_FUNC_FAST,(int *)0x0), iVar2 != 0)) {
         move_multiplier = 2.0;
@@ -1265,18 +1333,23 @@ void sithControl_PlayerMovementMots(sithThing *player)
     }
     iVar2 = sithControl_ReadFunctionMap(INPUT_FUNC_SLIDETOGGLE,&local_4);
     if (iVar2 == 0) {
-        fVar4 = sithControl_GetAxis(INPUT_FUNC_TURN);
+        fVar4 = sithControl_GetAxisNonTimeCorrectedRaw(INPUT_FUNC_TURN);
+#ifdef QOL_IMPROVEMENTS
+        // Scale appropriately to high framerates
         fVar4 = fVar4 * sithTime_TickHz;
+#else
+        fVar4 = fVar4 * sithTime_TickHz;
+#endif
         if (1.0 <= move_multiplier) {
             local_8 = 1.0;
         }
         else {
             local_8 = move_multiplier;
         }
-        fVar3 = sithControl_ReadAxisStuff(INPUT_FUNC_TURN);
+        fVar3 = sithControl_GetAxisNonRaw(INPUT_FUNC_TURN);
 #ifdef QOL_IMPROVEMENTS
         // Scale appropriately to high framerates
-        fVar3 *= (sithTime_TickHz / 50.0);
+        //fVar3 *= (sithTime_TickHz / 25.0) * 2.0;
 #endif
 
         fVar4 += fVar3 * thing->actorParams.maxRotThrust * local_8;
@@ -1287,7 +1360,7 @@ void sithControl_PlayerMovementMots(sithThing *player)
                 sithControl_008d7f50 = 0;
             }
             thing->physicsParams.angVel.y = fVar4;
-            fVar4 = sithControl_GetAxis2(INPUT_FUNC_SLIDE);
+            fVar4 = sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE);
             fVar4 = (thing->actorParams.maxThrust +
                     thing->actorParams.extraSpeed) * -fVar4 * 0.7;
             if (fVar4 == 0.0) goto joined_r0x00527cfa;
@@ -1307,7 +1380,7 @@ void sithControl_PlayerMovementMots(sithThing *player)
             }
             else {
                 thing->physicsParams.angVel.y = fVar4;
-                fVar4 = sithControl_GetAxis2(INPUT_FUNC_SLIDE);
+                fVar4 = sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE);
                 fVar4 = (thing->actorParams.maxThrust +
                         thing->actorParams.extraSpeed) * -fVar4 * 0.7;
                 if (fVar4 == 0.0) goto joined_r0x00527cfa;
@@ -1321,8 +1394,8 @@ void sithControl_PlayerMovementMots(sithThing *player)
         }
     }
     else {
-        fVar3 = sithControl_GetAxis2(INPUT_FUNC_TURN);
-        fVar4 = sithControl_GetAxis2(INPUT_FUNC_SLIDE);
+        fVar3 = sithControl_GetAxisTimeCorrected(INPUT_FUNC_TURN);
+        fVar4 = sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE);
         fVar4 = -fVar4 - fVar3;
         if (fVar4 < -1.0) {
             fVar4 = -1.0;
@@ -1358,7 +1431,7 @@ LAB_00527d1c:
         local_8 = 0.0;
     }
     else {
-        local_8 = sithControl_GetAxis2(INPUT_FUNC_FORWARD);
+        local_8 = sithControl_GetAxisTimeCorrected(INPUT_FUNC_FORWARD);
     }
     fVar4 = (thing->actorParams.maxThrust + thing->actorParams.extraSpeed)
             * local_8;
@@ -1413,16 +1486,16 @@ void sithControl_PlayerMovement(sithThing *player)
     }
 
     int new_state; // eax
-    double v6; // st7
-    double v7; // st6
-    double v11; // st7
-    double y_vel; // st6
+    flex_d_t v6; // st7
+    flex_d_t v7; // st6
+    flex_d_t v11; // st7
+    flex_d_t y_vel; // st6
     int v16; // eax
-    double v17; // st7
-    float move_multiplier_a; // [esp+4h] [ebp-8h]
-    float move_multiplier_; // [esp+4h] [ebp-8h]
+    flex_d_t v17; // st7
+    flex_t move_multiplier_a; // [esp+4h] [ebp-8h]
+    flex_t move_multiplier_; // [esp+4h] [ebp-8h]
     int v20; // [esp+8h] [ebp-4h] BYREF
-    float move_multiplier; // [esp+10h] [ebp+4h]
+    flex_t move_multiplier; // [esp+10h] [ebp+4h]
 
     move_multiplier = 1.0;
     if ( (sithWeapon_controlOptions & 2) != 0 || sithControl_ReadFunctionMap(INPUT_FUNC_FAST, 0) )
@@ -1455,8 +1528,8 @@ void sithControl_PlayerMovement(sithThing *player)
     {
         if ( sithControl_ReadFunctionMap(INPUT_FUNC_SLIDETOGGLE, &v20) )
         {
-            move_multiplier_a = sithControl_GetAxis2(INPUT_FUNC_SLIDE);
-            v6 = move_multiplier_a - sithControl_GetAxis2(INPUT_FUNC_TURN);
+            move_multiplier_a = sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE);
+            v6 = move_multiplier_a - sithControl_GetAxisTimeCorrected(INPUT_FUNC_TURN);
             if ( v6 < -1.0 )
             {
                 v6 = -1.0;
@@ -1472,23 +1545,32 @@ void sithControl_PlayerMovement(sithThing *player)
         else
         {
             // Player yaw handling
-            player->physicsParams.angVel.y = sithControl_GetAxis(INPUT_FUNC_TURN) * sithTime_TickHz;
-            if ( move_multiplier > 1.0 )
+
+            // These base values only come from raw axis fetches
+#ifdef QOL_IMPROVEMENTS
+            // Scale appropriately to high and low framerates
+            player->physicsParams.angVel.y = sithControl_GetAxisNonTimeCorrectedRaw(INPUT_FUNC_TURN) * sithTime_TickHz;
+#else
+            player->physicsParams.angVel.y = sithControl_GetAxisNonTimeCorrectedRaw(INPUT_FUNC_TURN) * sithTime_TickHz;
+#endif
+            if ( move_multiplier <= 1.0 )
                 move_multiplier_ = move_multiplier;
             else
                 move_multiplier_ = 1.0;
             
+            // These axis values only come from non-raw axis fetches
 #ifdef QOL_IMPROVEMENTS
             // Scale appropriately to high framerates
-            player->physicsParams.angVel.y += (sithTime_TickHz / 50.0) * sithControl_ReadAxisStuff(INPUT_FUNC_TURN) * player->actorParams.maxRotThrust * move_multiplier_;
+            player->physicsParams.angVel.y += sithControl_GetAxisNonRaw(INPUT_FUNC_TURN) * player->actorParams.maxRotThrust * move_multiplier_;// * (sithTime_TickHz / 25.0) * 2.0;
 #else
-            player->physicsParams.angVel.y += sithControl_ReadAxisStuff(INPUT_FUNC_TURN) * player->actorParams.maxRotThrust * move_multiplier_;
+            player->physicsParams.angVel.y += sithControl_GetAxisNonRaw(INPUT_FUNC_TURN) * player->actorParams.maxRotThrust * move_multiplier_;
 #endif
-            player->physicsParams.acceleration.x = sithControl_GetAxis2(INPUT_FUNC_SLIDE)
+
+            player->physicsParams.acceleration.x = sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE)
                                                             * (player->actorParams.maxThrust + player->actorParams.extraSpeed)
                                                             * 0.7;
         }
-        v11 = sithControl_GetAxis2(0);
+        v11 = sithControl_GetAxisTimeCorrected(0);
         y_vel = (player->actorParams.maxThrust + player->actorParams.extraSpeed) * v11;
         if ( v11 < 0.0 )
             y_vel = y_vel * 0.5;
@@ -1518,13 +1600,13 @@ void sithControl_FreeCam(sithThing *player)
     sithThing *v1; // esi
     int v2; // ebp
     sithSector *v3; // eax
-    double v5; // st7
-    double v6; // st6
+    flex_d_t v5; // st7
+    flex_d_t v6; // st6
     rdVector3 *v7; // edi
-    double v9; // st7
-    double v11; // st7
-    double v12; // st6
-    float v15; // [esp+Ch] [ebp-34h]
+    flex_d_t v9; // st7
+    flex_d_t v11; // st7
+    flex_d_t v12; // st6
+    flex_t v15; // [esp+Ch] [ebp-34h]
     rdMatrix34 a; // [esp+10h] [ebp-30h] BYREF
     int tmp;
 
@@ -1542,7 +1624,7 @@ void sithControl_FreeCam(sithThing *player)
     sithControl_ReadFunctionMap(INPUT_FUNC_SLOW, 0);
     if ( v1->type == SITH_THING_ACTOR || v1->type == SITH_THING_PLAYER )
     {
-        v5 = sithControl_GetAxis2(0);
+        v5 = sithControl_GetAxisTimeCorrected(0);
         v6 = v1->actorParams.extraSpeed + v1->actorParams.maxThrust;
         v7 = &v1->physicsParams.acceleration;
         v1->physicsParams.acceleration.z = 0.0;
@@ -1551,20 +1633,20 @@ void sithControl_FreeCam(sithThing *player)
         if ( (v1->physicsParams.acceleration.x != 0.0 || v1->physicsParams.acceleration.y != 0.0) // TODO verified first comparison?
           && (v1->actorParams.eyePYR.x != 0.0 || v1->actorParams.eyePYR.y != 0.0 || v1->actorParams.eyePYR.z != 0.0)
           && v2
-          && (v1->physicsParams.physflags & SITH_PF_MIDAIR) == 0 )
+          && (v1->physicsParams.physflags & SITH_PF_WATERSURFACE) == 0 )
         {
             rdMatrix_BuildRotate34(&a, &v1->actorParams.eyePYR);
             rdMatrix_TransformVector34Acc(&v1->physicsParams.acceleration, &a);
         }
         if ( sithControl_ReadFunctionMap(INPUT_FUNC_SLIDETOGGLE, &tmp) )
         {
-            v15 = sithControl_GetAxis2(INPUT_FUNC_SLIDE);
+            v15 = sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE);
 
             // Why did MoTS do this lol
             if (Main_bMotsCompat)
                 v15 = -v15;
 
-            v11 = v15 - sithControl_GetAxis2(INPUT_FUNC_TURN);
+            v11 = v15 - sithControl_GetAxisTimeCorrected(INPUT_FUNC_TURN);
             if ( v11 < -1.0 )
             {
                 v11 = -1.0;
@@ -1580,13 +1662,15 @@ void sithControl_FreeCam(sithThing *player)
         else
         {
             // Why did MoTS do this lol
-            v7->x = (Main_bMotsCompat ? -1 : 1) * sithControl_GetAxis2(INPUT_FUNC_SLIDE) * (v1->actorParams.extraSpeed + v1->actorParams.maxThrust) * 0.7;
-            v1->physicsParams.angVel.y = sithControl_GetAxis(INPUT_FUNC_TURN) * sithTime_TickHz;
+            v7->x = (Main_bMotsCompat ? -1 : 1) * sithControl_GetAxisTimeCorrected(INPUT_FUNC_SLIDE) * (v1->actorParams.extraSpeed + v1->actorParams.maxThrust) * 0.7;
+            
 #ifdef QOL_IMPROVEMENTS
             // Scale appropriately to high framerates
-            v1->physicsParams.angVel.y +=  (sithTime_TickHz / 50.0) * sithControl_ReadAxisStuff(INPUT_FUNC_TURN) * v1->actorParams.maxRotThrust;
+            v1->physicsParams.angVel.y = sithControl_GetAxisNonTimeCorrectedRaw(INPUT_FUNC_TURN) * sithTime_TickHz;
+            v1->physicsParams.angVel.y +=  sithControl_GetAxisNonRaw(INPUT_FUNC_TURN) * v1->actorParams.maxRotThrust;// * (sithTime_TickHz / 25.0) * 2.0;
 #else
-            v1->physicsParams.angVel.y += sithControl_ReadAxisStuff(INPUT_FUNC_TURN) * v1->actorParams.maxRotThrust;
+            v1->physicsParams.angVel.y = sithControl_GetAxisNonTimeCorrectedRaw(INPUT_FUNC_TURN) * sithTime_TickHz;
+            v1->physicsParams.angVel.y += sithControl_GetAxisNonRaw(INPUT_FUNC_TURN) * v1->actorParams.maxRotThrust;
 #endif
         }
         if ( v2 )
@@ -1596,12 +1680,14 @@ void sithControl_FreeCam(sithThing *player)
                 rdMatrix34 a;
                 rdVector3 addVec;
 
-                float mult = 1.0;
+                flex_t mult = 1.0;
                 if (sithControl_ReadFunctionMap(INPUT_FUNC_FAST, 0)) {
                     mult *= 5.0;
                 }
                 else if (sithControl_ReadFunctionMap(INPUT_FUNC_JUMP, &tmp)) {
+#ifndef TARGET_TWL
                     mult *= 5.0;
+#endif
                 }
                 if (sithControl_ReadFunctionMap(INPUT_FUNC_DUCK, &tmp)) {
                     mult *= 0.5;
@@ -1612,7 +1698,15 @@ void sithControl_FreeCam(sithThing *player)
 
                 rdMatrix_BuildRotate34(&a, &v1->actorParams.eyePYR);
                 rdVector_Zero3(&addVec);
-                rdVector_MultAcc3(&addVec, &rdroid_yVector3, sithControl_ReadAxisStuff(INPUT_FUNC_FORWARD) * mult);
+                rdVector_MultAcc3(&addVec, &rdroid_yVector3, sithControl_GetAxisNonRaw(INPUT_FUNC_FORWARD) * mult);
+#ifdef TARGET_TWL
+                if (sithControl_ReadFunctionMap(INPUT_FUNC_JUMP, &tmp)) {
+                    rdVector_MultAcc3(&addVec, &rdroid_zVector3, 1.0);
+                }
+                if (sithControl_ReadFunctionMap(INPUT_FUNC_DUCK, &tmp)) {
+                    rdVector_MultAcc3(&addVec, &rdroid_zVector3, -1.0);
+                }
+#endif
 
                 rdMatrix_TransformVector34Acc(&addVec, &a);
                 rdMatrix_TransformVector34Acc(&addVec, &v1->lookOrientation);
@@ -1626,7 +1720,7 @@ void sithControl_FreeCam(sithThing *player)
 
                 rdMatrix_BuildRotate34(&a, &v1->actorParams.eyePYR);
                 rdVector_Zero3(&addVec);
-                rdVector_MultAcc3(&addVec, &rdroid_xVector3, (Main_bMotsCompat ? -1.0 : 1.0) * sithControl_ReadAxisStuff(INPUT_FUNC_SLIDE));
+                rdVector_MultAcc3(&addVec, &rdroid_xVector3, (Main_bMotsCompat ? -1.0 : 1.0) * sithControl_GetAxisNonRaw(INPUT_FUNC_SLIDE));
 
                 rdMatrix_TransformVector34Acc(&addVec, &a);
                 rdMatrix_TransformVector34Acc(&addVec, &v1->lookOrientation);
@@ -1637,9 +1731,9 @@ void sithControl_FreeCam(sithThing *player)
             {
                 // Added: noclip
                 if ((g_debugmodeFlags & DEBUGFLAG_NOCLIP)) {
-                    
+
                 }
-                else if ( (v1->physicsParams.physflags & SITH_PF_MIDAIR) != 0 )
+                else if ( (v1->physicsParams.physflags & SITH_PF_WATERSURFACE) != 0 )
                 {
                     if ( tmp )
                         sithPlayerActions_JumpWithVel(v1, 1.0);
@@ -1755,7 +1849,7 @@ void sithControl_MapDefaults()
     sithControl_MapFunc(INPUT_FUNC_MAP, DIK_TAB, 0);
     sithControl_MapFunc(INPUT_FUNC_INCREASE, DIK_EQUALS, 0);
     sithControl_MapFunc(INPUT_FUNC_DECREASE, DIK_MINUS, 0);
-    if ( (g_debugmodeFlags & 0x100) != 0 )
+    if ( (g_debugmodeFlags & DEBUGFLAG_IN_EDITOR) != 0 )
         sithControl_MapFunc(INPUT_FUNC_DEBUG, DIK_BACK, 0);// DIK_BACKSPACE
     sithControl_MapFunc(INPUT_FUNC_TALK, DIK_T, 0);
     sithControl_MapFunc(INPUT_FUNC_GAMMA, DIK_F11, 0);
@@ -1769,35 +1863,31 @@ void sithControl_InputInit()
     stdControlKeyInfoEntry *v7; // eax
     stdControlKeyInfoEntry *v8; // eax
 
-    _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(stdControlKeyInfo) * 74);
+    _memset(sithControl_aInputFuncToKeyinfo, 0, sizeof(stdControlKeyInfo) * INPUT_FUNC_MAX);
+#ifndef TARGET_TWL
     stdControl_Reset();
-    sithWeapon_controlOptions = 36;
+#endif
+
+    // Enable joystick by default
+#ifdef QOL_IMPROVEMENTS
+    sithWeapon_controlOptions = 0x4;
+#else
+    sithWeapon_controlOptions = 0x24;
+#endif
+
     sithControl_MapDefaults();
     sithControl_MapAxisFunc(INPUT_FUNC_FORWARD, AXIS_JOY1_Y, 4u);
     sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_JOY1_X, 4u);
-    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_JOY1_B1, 2);
-    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_JOY1_B2, 2);
-    sithControl_DefaultHelper(INPUT_FUNC_ACTIVATE, KEY_JOY1_B3, 2);
-    sithControl_MapFunc(INPUT_FUNC_JUMP, KEY_JOY1_B4, 0);
-    sithControl_MapFunc(INPUT_FUNC_PITCH, KEY_JOY1_HUP, 4);
-    sithControl_MapFunc(INPUT_FUNC_PITCH, KEY_JOY1_HDOWN, 0);
-    sithControl_MapFunc(INPUT_FUNC_SLIDE, KEY_JOY1_HLEFT, 4);
-    sithControl_MapFunc(INPUT_FUNC_SLIDE, KEY_JOY1_HRIGHT, 0);
-    sithControl_MapFunc(INPUT_FUNC_NEXTINV, KEY_JOY1_B5, 0);
-    sithControl_MapFunc(INPUT_FUNC_USEINV, KEY_JOY1_B7, 0);
-    v6 = sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_MOUSE_X, 0xCu);
-    if ( v6 )
-        v6->binaryAxisVal = 0.4;
-    v7 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Y, 8u);
-    if ( v7 )
-        v7->binaryAxisVal = 0.3;
-    v8 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Z, 0);
-    if ( v8 )
-        v8->binaryAxisVal = 4.0;
-    
-    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_MOUSE_B1, 2);
-    sithControl_DefaultHelper(INPUT_FUNC_JUMP, KEY_MOUSE_B2, 2);
-    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_MOUSE_B3, 2);
+
+    sithControl_MapDefaultsMouse();
+
+#ifdef QOL_IMPROVEMENTS
+    sithControl_MapDefaultsJoystick();
+#endif
+
+#ifdef TARGET_TWL
+    sithWeapon_controlOptions |= 2;
+#endif // TARGET_TWL
 }
 
 void sithControl_sub_4D6930(int funcIdx)
@@ -1805,7 +1895,7 @@ void sithControl_sub_4D6930(int funcIdx)
     sithControl_inputFuncToControlType[funcIdx] = 5;
 }
 
-stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction, int a2, int a3, int a4, void *a5)
+stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction, int a2, int a3, int a4, Darray *a5)
 {
     stdControlKeyInfo *result; // eax
     int v6; // ebp
@@ -1815,7 +1905,7 @@ stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction
     int v10; // ecx
     int v11; // ebx
     stdControlKeyInfoEntry *v12; // edi
-    void *v13; // edi
+    Darray *v13; // edi
     stdControlKeyInfoEntry *i; // [esp+10h] [ebp-1Ch]
     unsigned int v16; // [esp+14h] [ebp-18h]
     int v17; // [esp+18h] [ebp-14h]
@@ -1828,14 +1918,14 @@ stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction
     v6 = 1;
     v7 = 0;
     v20 = sithControl_aInputFuncToKeyinfo;
-    for (int j = 0; j < 74; j++)
+    for (int j = 0; j < INPUT_FUNC_MAX; j++)
     {
         int typeflags = sithControl_inputFuncToControlType[v7];
 
         v18 = 0;
         v19 = 0;
         v17 = 0;
-        v21 = typeflags & 2;
+        v21 = typeflags & INPUT_MAPPING_FLAG_DXKEY;
         v16 = 0;
         v8 = &result->aEntries[0];
 
@@ -1843,7 +1933,7 @@ stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction
         {
             v9 = v8->flags;
             v10 = v8->dxKeyNum;
-            v11 = v8->flags & 2;
+            v11 = v8->flags & INPUT_MAPPING_FLAG_DXKEY;
             if ( (!v11 || v10 >= JK_EXTENDED_KEY_START || a2)
               && (((v9 & 1) == 0 || v10 < AXIS_MOUSE_X) 
               && (!v11 || !KEY_IS_MOUSE(v10)) || a4)
@@ -1851,7 +1941,7 @@ stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction
               && (!v11 || v10 < JK_EXTENDED_KEY_START || KEY_IS_MOUSE(v10)) || a3) )
             {
                 v6 = pfEnumFunction(v7, sithControl_aFunctionStrs[v7], typeflags, v16, v10, v9, v8, a5);
-                if ( v18 || (v12 = i, (i->dxKeyNum & 2) != 0) && (i->dxKeyNum & 4) == 0 )
+                if ( v18 || (v12 = i, (i->flags & INPUT_MAPPING_FLAG_DXKEY) != 0) && (i->flags & 4) == 0 )
                 {
                     v12 = i;
                     v18 = 1;
@@ -1860,8 +1950,8 @@ stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction
                 {
                     v18 = 0;
                 }
-                v19 = v19 || (v12->dxKeyNum & 2) != 0 && (v12->dxKeyNum & 4) != 0;
-                if ( v17 || (v17 = 0, (v12->dxKeyNum & 1) != 0) )
+                v19 = v19 || (v12->flags & INPUT_MAPPING_FLAG_DXKEY) != 0 && (v12->flags & 4) != 0;
+                if ( v17 || (v17 = 0, (v12->flags & INPUT_MAPPING_FLAG_AXIS) != 0) )
                     v17 = 1;
             }
             ++v16;
@@ -1888,7 +1978,40 @@ stdControlKeyInfo* sithControl_EnumBindings(sithControlEnumFunc_t pfEnumFunction
     return result;
 }
 
-void sithControl_sub_4D7670()
+void sithControl_MapDefaultsMouse()
+{
+    stdControlKeyInfoEntry *v10;
+
+#ifdef QOL_IMPROVEMENTS
+    v10 = sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_MOUSE_X, INPUT_MAPPING_FLAG_AXIS_REVERSED | INPUT_MAPPING_FLAG_RAW_AXIS);
+    if ( v10 )
+        v10->binaryAxisVal = 0.4;
+#else
+    v10 = sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_MOUSE_X, INPUT_MAPPING_FLAG_AXIS_REVERSED | INPUT_MAPPING_FLAG_RAW_AXIS);
+    if ( v10 )
+        v10->binaryAxisVal = 0.4;
+#endif
+
+#ifdef QOL_IMPROVEMENTS
+    v10 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Y, INPUT_MAPPING_FLAG_AXIS_REVERSED | INPUT_MAPPING_FLAG_RAW_AXIS); // Non-inverted by default, fight me lol
+    if ( v10 ) 
+        v10->binaryAxisVal = 0.3;
+#else
+    v10 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Y, INPUT_MAPPING_FLAG_RAW_AXIS);
+    if ( v10 ) 
+        v10->binaryAxisVal = 0.3;
+#endif
+    
+    v10 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Z, 0);
+    if ( v10 )
+        v10->binaryAxisVal = 4.0;
+    
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_MOUSE_B1, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_JUMP, KEY_MOUSE_B2, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_MOUSE_B3, 2);
+}
+
+void sithControl_MouseInputInitDefaults()
 {
     stdControlKeyInfo *v0; // edx
     uint32_t v1; // ecx
@@ -1900,9 +2023,6 @@ void sithControl_sub_4D7670()
     uint32_t v7; // ecx
     stdControlKeyInfoEntry *v8; // eax
     stdControlKeyInfoEntry *v9; // ebx
-    stdControlKeyInfoEntry *v10; // eax
-    stdControlKeyInfoEntry *v11; // eax
-    stdControlKeyInfoEntry *v12; // eax
     uint32_t v13; // ebp
     int v14; // edi
     stdControlKeyInfo *v15; // esi
@@ -1970,23 +2090,12 @@ void sithControl_sub_4D7670()
 LABEL_17:
         ;
     }
-    while ( v3 || ++v0 < &sithControl_aInputFuncToKeyinfo[74] );
+    while ( v3 || ++v0 < &sithControl_aInputFuncToKeyinfo[INPUT_FUNC_MAX] );
 
-    v10 = sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_MOUSE_X, 0xCu);
-    if ( v10 )
-        v10->binaryAxisVal = 0.4;
-    v11 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Y, 8u);
-    if ( v11 )
-        v11->binaryAxisVal = 0.3;
-    v12 = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_MOUSE_Z, 0);
-    if ( v12 )
-        v12->binaryAxisVal = 4.0;
-    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_MOUSE_B1, 2);
-    sithControl_DefaultHelper(INPUT_FUNC_JUMP, KEY_MOUSE_B2, 2);
-    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_MOUSE_B3, 2);
+    sithControl_MapDefaultsMouse();
 }
 
-void sithControl_sub_4D7350()
+void sithControl_KeyboardInputInitDefaults()
 {
     stdControlKeyInfo *v0; // edx
     uint32_t v1; // eax
@@ -2013,7 +2122,7 @@ void sithControl_sub_4D7350()
             v9 = v0->aEntries;
             while ( !v3 )
             {
-                if ( (v4->flags & 1) == 0 && v4->dxKeyNum < JK_EXTENDED_KEY_START )
+                if ( (v4->flags & INPUT_MAPPING_FLAG_AXIS) == 0 && v4->dxKeyNum < JK_EXTENDED_KEY_START )
                 {
                     v5 = v1 - 1;
                     v6 = v2;
@@ -2045,7 +2154,7 @@ void sithControl_sub_4D7350()
 LABEL_13:
         ;
     }
-    while ( v3 || ++v0 < &sithControl_aInputFuncToKeyinfo[74] );
+    while ( v3 || ++v0 < &sithControl_aInputFuncToKeyinfo[INPUT_FUNC_MAX] );
     sithControl_MapDefaults();
 }
 
@@ -2090,7 +2199,8 @@ void sithControl_JoyInputInit()
             while ( !v3 )
             {
                 v5 = v4->dxKeyNum;
-                if ( (v4->flags & 1) == 0 && KEY_IS_JOY_BUTTON(v5) || (v4->flags & 1) != 0 && v5 >= 0 && v5 <= 11 )
+                if ( (v4->flags & INPUT_MAPPING_FLAG_AXIS) == 0 && KEY_IS_JOY_BUTTON(v5) 
+                    || (v4->flags & INPUT_MAPPING_FLAG_AXIS) != 0 && v5 >= AXIS_JOY1_X && v5 <= AXIS_JOY2_V )
                 {
                     v6 = v1 - 1;
                     v7 = v2;
@@ -2122,68 +2232,94 @@ void sithControl_JoyInputInit()
 LABEL_17:
         ;
     }
-    while ( v3 || ++v0 < &sithControl_aInputFuncToKeyinfo[74] );
+    while ( v3 || ++v0 < &sithControl_aInputFuncToKeyinfo[INPUT_FUNC_MAX] );
+
+    sithControl_MapDefaultsJoystick();
+}
+
+// Added
+void sithControl_MapDefaultsJoystick() {
+#if !defined(TARGET_TWL) && defined(QOL_IMPROVEMENTS)
+    stdControlKeyInfoEntry* mapped;
+
+    mapped = sithControl_MapAxisFunc(INPUT_FUNC_FORWARD, AXIS_JOY1_Y, 4u);
+    if (mapped) {
+        mapped->binaryAxisVal = 1.0;
+    }
+
+    if (Main_bMotsCompat) {
+        mapped = sithControl_MapAxisFunc(INPUT_FUNC_SLIDE, AXIS_JOY1_X, 4u);
+    }
+    else {
+        mapped = sithControl_MapAxisFunc(INPUT_FUNC_SLIDE, AXIS_JOY1_X, 0u);
+    }
+    if (mapped) {
+        mapped->binaryAxisVal = 1.0;
+    }
+
+    mapped = sithControl_MapAxisFunc(INPUT_FUNC_PITCH, AXIS_JOY1_R, 4u);
+    if (mapped) {
+        mapped->binaryAxisVal = 1.25;
+    }
+    mapped = sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_JOY1_Z, 4u);
+    if (mapped) {
+        mapped->binaryAxisVal = 1.5;
+    }
+
+    sithControl_DefaultHelper(INPUT_FUNC_USELASTSELECTED, KEY_JOY1_B1, 2); // a
+    sithControl_DefaultHelper(INPUT_FUNC_DUCK, KEY_JOY1_B2, 2); // b
+    sithControl_DefaultHelper(INPUT_FUNC_ACTIVATE, KEY_JOY1_B3, 2); // x
+    sithControl_MapFunc(INPUT_FUNC_JUMP, KEY_JOY1_B4, 0); // y
+
+    sithControl_DefaultHelper(INPUT_FUNC_USEINV, KEY_JOY1_B8, 2); // lstick click
+    sithControl_DefaultHelper(INPUT_FUNC_USESKILL, KEY_JOY1_B9, 2); // rstick click
+
+    sithControl_MapFunc(INPUT_FUNC_NEXTINV, KEY_JOY1_HUP, 0);
+    sithControl_MapFunc(INPUT_FUNC_PREVINV, KEY_JOY1_HDOWN, 0);
+    sithControl_MapFunc(INPUT_FUNC_PREVSKILL, KEY_JOY1_HLEFT, 0);
+    sithControl_MapFunc(INPUT_FUNC_NEXTSKILL, KEY_JOY1_HRIGHT, 0);
+
+    sithControl_MapFunc(INPUT_FUNC_PREVWEAPON, KEY_JOY1_B10, 0); // lbump
+    sithControl_MapFunc(INPUT_FUNC_NEXTWEAPON, KEY_JOY1_B11, 0); // rbump
+
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_JOY1_B16, 2); // ltrig
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_JOY1_B17, 2); // rtrig
+#elif defined(TARGET_TWL)
+    sithControl_MapFunc(INPUT_FUNC_FORWARD, KEY_JOY1_HUP, 0);
+    sithControl_MapFunc(INPUT_FUNC_NEXTSKILL, KEY_JOY1_HDOWN, 0);
+    sithControl_MapFunc(INPUT_FUNC_TURN, KEY_JOY1_HLEFT, 0);
+    sithControl_MapFunc(INPUT_FUNC_TURN, KEY_JOY1_HRIGHT, 4);
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_JOY1_B1, 2); // a
+    sithControl_DefaultHelper(INPUT_FUNC_DUCK, KEY_JOY1_B2, 0); // b
+    sithControl_DefaultHelper(INPUT_FUNC_ACTIVATE, KEY_JOY1_B3, 2); // x
+    sithControl_MapFunc(INPUT_FUNC_JUMP, KEY_JOY1_B4, 0); // y
+    sithControl_MapFunc(INPUT_FUNC_NEXTINV, KEY_JOY1_B10, 0); // L
+    sithControl_MapFunc(INPUT_FUNC_NEXTWEAPON, KEY_JOY1_B11, 0); // R
+    sithControl_MapFunc(INPUT_FUNC_USELASTSELECTED, KEY_JOY1_B7, 0);
+#else
     sithControl_MapAxisFunc(INPUT_FUNC_FORWARD, AXIS_JOY1_Y, 4u);
     sithControl_MapAxisFunc(INPUT_FUNC_TURN, AXIS_JOY1_X, 4u);
-    if ( (sithControl_inputFuncToControlType[10] & 1) != 0 && sithControl_aInputFuncToKeyinfo[10].numEntries != 8 )
-    {
-        sithControl_MapFuncToDxKey(INPUT_FUNC_SLIDE, KEY_JOY1_B1);
-        v10 = sithControl_aInputFuncToKeyinfo[10].numEntries + 1;
-        v11 = &sithControl_aInputFuncToKeyinfo[10].aEntries[sithControl_aInputFuncToKeyinfo[10].numEntries];
-        v11->flags = 2;
-        v11->dxKeyNum = KEY_JOY1_B1;
-        sithControl_aInputFuncToKeyinfo[10].numEntries = v10;
-    }
-    if ( (sithControl_inputFuncToControlType[11] & 1) != 0 && sithControl_aInputFuncToKeyinfo[11].numEntries != 8 )
-    {
-        sithControl_MapFuncToDxKey(INPUT_FUNC_SLIDE, KEY_JOY1_B2);
-        v12 = sithControl_aInputFuncToKeyinfo[11].numEntries + 1;
-        v13 = &sithControl_aInputFuncToKeyinfo[11].aEntries[sithControl_aInputFuncToKeyinfo[11].numEntries];
-        v13->flags = 2;
-        v13->dxKeyNum = KEY_JOY1_B2;
-        sithControl_aInputFuncToKeyinfo[11].numEntries = v12;
-    }
-    if ( (sithControl_inputFuncToControlType[12] & 1) != 0 && sithControl_aInputFuncToKeyinfo[12].numEntries != 8 )
-    {
-        sithControl_MapFuncToDxKey(INPUT_FUNC_SLIDE, KEY_JOY1_B3);
-        v14 = sithControl_aInputFuncToKeyinfo[12].numEntries + 1;
-        v15 = &sithControl_aInputFuncToKeyinfo[12].aEntries[sithControl_aInputFuncToKeyinfo[12].numEntries];
-        v15->flags = 2;
-        v15->dxKeyNum = KEY_JOY1_B3;
-        sithControl_aInputFuncToKeyinfo[12].numEntries = v14;
-    }
-    if ( (sithControl_inputFuncToControlType[4] & 1) != 0 && sithControl_aInputFuncToKeyinfo[4].numEntries != 8 )
-    {
-        sithControl_MapFuncToDxKey(INPUT_FUNC_SLIDE, KEY_JOY1_B4);
-        v16 = sithControl_aInputFuncToKeyinfo[4].numEntries + 1;
-        v17 = &sithControl_aInputFuncToKeyinfo[4].aEntries[sithControl_aInputFuncToKeyinfo[4].numEntries];
-        v17->flags = 2;
-        v17->dxKeyNum = KEY_JOY1_B4;
-        sithControl_aInputFuncToKeyinfo[4].numEntries = v16;
-    }
-    if ( (sithControl_inputFuncToControlType[8] & 1) != 0 )
-    {
-        if ( sithControl_aInputFuncToKeyinfo[8].numEntries != 8 )
-        {
-            sithControl_MapFuncToDxKey(INPUT_FUNC_SLIDE, KEY_JOY1_HUP);
-            v18 = sithControl_aInputFuncToKeyinfo[8].numEntries + 1;
-            v19 = &sithControl_aInputFuncToKeyinfo[8].aEntries[sithControl_aInputFuncToKeyinfo[8].numEntries];
-            v19->flags = 6;
-            v19->dxKeyNum = KEY_JOY1_HUP;
-            sithControl_aInputFuncToKeyinfo[8].numEntries = v18;
-        }
-        if ( (sithControl_inputFuncToControlType[8] & 1) != 0 && sithControl_aInputFuncToKeyinfo[8].numEntries != 8 )
-        {
-            sithControl_MapFuncToDxKey(INPUT_FUNC_SLIDE, KEY_JOY1_HDOWN);
-            v20 = sithControl_aInputFuncToKeyinfo[8].numEntries + 1;
-            v21 = &sithControl_aInputFuncToKeyinfo[8].aEntries[sithControl_aInputFuncToKeyinfo[8].numEntries];
-            v21->flags = 2;
-            v21->dxKeyNum = KEY_JOY1_HDOWN;
-            sithControl_aInputFuncToKeyinfo[8].numEntries = v20;
-        }
-    }
+
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE1, KEY_JOY1_B1, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_FIRE2, KEY_JOY1_B2, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_ACTIVATE, KEY_JOY1_B3, 2);
+    sithControl_DefaultHelper(INPUT_FUNC_JUMP, KEY_JOY1_B4, 2);
+    sithControl_MapFunc(INPUT_FUNC_PITCH, KEY_JOY1_HUP, 4);
+    sithControl_MapFunc(INPUT_FUNC_PITCH, KEY_JOY1_HDOWN, 0);
     sithControl_MapFunc(INPUT_FUNC_SLIDE, KEY_JOY1_HLEFT, 4);
     sithControl_MapFunc(INPUT_FUNC_SLIDE, KEY_JOY1_HRIGHT, 0);
     sithControl_MapFunc(INPUT_FUNC_NEXTINV, KEY_JOY1_B5, 0);
     sithControl_MapFunc(INPUT_FUNC_USEINV, KEY_JOY1_B7, 0);
+#endif
 }
+
+// Common button for both items and force power usage for controllers
+#ifdef QOL_IMPROVEMENTS
+void sithControl_SetLastSelected(int which) {
+    sithControl_lastSelected = which;
+}
+
+int sithControl_GetLastSelected() {
+    return sithControl_lastSelected;
+}
+#endif // QOL_IMPROVEMENTS

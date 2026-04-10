@@ -7,16 +7,20 @@
 #include "General/stdFnames.h"
 #include "stdPlatform.h"
 #include "Win95/Windows.h"
+#include "Win95/std.h"
 #include "Main/sithMain.h"
 #include "General/util.h"
 #include "Gui/jkGUIDialog.h"
 #include "Main/jkStrings.h"
 #include "General/stdString.h"
+#include "General/stdHashTable.h"
 
 static int jkRes_bInit;
 
 int jkRes_Startup(HostServices *a1)
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+    
     if ( jkRes_bInit )
         return 0;
 
@@ -38,6 +42,8 @@ int jkRes_Startup(HostServices *a1)
 
 int jkRes_Shutdown()
 {
+    stdPlatform_Printf("OpenJKDF2: %s\n", __func__);
+
     if (!jkRes_bInit)
         return 0;
 
@@ -137,7 +143,7 @@ void jkRes_HookHS()
         jkRes_pHS->fileGets = jkRes_FileGets;
         jkRes_pHS->fileGetws = jkRes_FileGetws;
         jkRes_pHS->fileWrite = jkRes_FileWrite;
-        jkRes_pHS->feof = jkRes_FEof;
+        jkRes_pHS->fileEof = jkRes_FEof;
         jkRes_pHS->ftell = jkRes_FTell;
         jkRes_pHS->fseek = jkRes_FSeek;
         jkRes_pHS->fileSize = jkRes_FileSize;
@@ -156,7 +162,7 @@ void jkRes_UnhookHS()
         jkRes_pHS->fileGets = lowLevelHS.fileGets;
         jkRes_pHS->fileGetws = lowLevelHS.fileGetws;
         jkRes_pHS->fileWrite = lowLevelHS.fileWrite;
-        jkRes_pHS->feof = lowLevelHS.feof;
+        jkRes_pHS->fileEof = lowLevelHS.fileEof;
         jkRes_pHS->ftell = lowLevelHS.ftell;
         jkRes_pHS->fseek = lowLevelHS.fseek;
         jkRes_pHS->fileSize = lowLevelHS.fileSize;
@@ -191,9 +197,24 @@ int jkRes_ReadKeyFromFile(const char* fpath)
 {
     int keyval;
 
-    stdFile_t fd = pHS->fileOpen(fpath, "rb");
-    if (!fd)
-        return 0;
+    // HACK
+    if (!pLowLevelHS || !pLowLevelHS->fileOpen) {
+        pLowLevelHS = (HostServices *)&lowLevelHS;
+        stdInitServices(&lowLevelHS);
+    }
+
+    stdFile_t fd = (stdFile_t)0;
+    if (!pHS || !(fd = pHS->fileOpen(fpath, "rb"), fd)) {
+        // Added: pLowLevelHS for DSi
+        fd = pLowLevelHS->fileOpen(fpath, "rb");
+        if (!fd) {
+            return 0;
+        }
+        keyval = 0;
+        pLowLevelHS->fileRead(fd, &keyval, 4);
+        pLowLevelHS->fileClose(fd);
+        return keyval;
+    }
 
     keyval = 0;
     pHS->fileRead(fd, &keyval, 4);
@@ -250,7 +271,7 @@ int jkRes_LoadNew(jkResGobDirectory *resGob, char *name, int a3)
         v15 = stdFileUtil_NewFind("mods", 3, JKRES_GOB_EXT);
         while (stdFileUtil_FindNext(v15, &v18))
         {
-            if ( resGob->numGobs >= 0x40u )
+            if ( resGob->numGobs >= STDGOB_MAX_GOBS )
                 break;
             if ( v18.fpath[0] != '.' )
             {
@@ -267,7 +288,7 @@ int jkRes_LoadNew(jkResGobDirectory *resGob, char *name, int a3)
     v15 = stdFileUtil_NewFind(name, 3, JKRES_GOB_EXT);
     while (stdFileUtil_FindNext(v15, &v18))
     {
-        if ( resGob->numGobs >= 0x40u )
+        if ( resGob->numGobs >= STDGOB_MAX_GOBS )
             break;
         if ( v18.fpath[0] != '.' )
         {
@@ -292,9 +313,9 @@ int jkRes_NewGob(jkResGobDirectory *gobFullpath, char *gobFolder, char *gobFname
     
     gobFullpath->numGobs = 0;
     stdString_snprintf(jkRes_idkGobPath, 0x80u, "%s%c%s", gobFolder, LEC_PATH_SEPARATOR_CHR, gobFname);
-    if ( util_FileExists(jkRes_idkGobPath) )
+    if ( util_FileExistsLowLevel(jkRes_idkGobPath) ) // Added: util_FileExists -> util_FileExistsLowLevel
     {
-        if ( gobFullpath->numGobs < 0x40u )
+        if ( gobFullpath->numGobs < STDGOB_MAX_GOBS )
         {
             gobFullpath->gobs[gobFullpath->numGobs] = stdGob_Load(jkRes_idkGobPath, 16, 0);
             if ( gobFullpath->gobs[gobFullpath->numGobs] )
@@ -310,7 +331,6 @@ int jkRes_NewGob(jkResGobDirectory *gobFullpath, char *gobFolder, char *gobFname
 int jkRes_LoadCD(int cdNumberNeeded)
 {
     int v1; // eax
-    int v2; // esi
     unsigned int v3; // edi
     stdGob **v4; // esi
     unsigned int v5; // edi
@@ -340,25 +360,28 @@ int jkRes_LoadCD(int cdNumberNeeded)
     while ( 1 )
     {
         v1 = pHS->fileOpen("jk_.cd", "rb");
-        v2 = v1;
-        if ( !v1 )
-            goto LABEL_11;
-        pHS->fileRead(v1, &keyval, 4);
-        if ( keyval == JKRES_MAGIC_0 )
-            goto LABEL_9;
-        if ( !cdNumberNeeded )
+        if ( v1 )
         {
-            if ( keyval != JKRES_MAGIC_1 && keyval != JKRES_MAGIC_2 )
-                goto LABEL_10;
-LABEL_9:
-            v23 = 1;
-            goto LABEL_10;
+            pHS->fileRead(v1, &keyval, 4);
+            if ( keyval == JKRES_MAGIC_0 ) {
+                v23 = 1;
+            }
+            else if ( !cdNumberNeeded )
+            {
+                if ( keyval == JKRES_MAGIC_1 || keyval == JKRES_MAGIC_2 )
+                    v23 = 1;
+            }
+            else if ( keyval == ((cdNumberNeeded << (cdNumberNeeded + 5)) | JKRES_MAGIC_3) ) {
+                v23 = 1;
+            }
+
+            pHS->fileClose(v1);
         }
-        if ( keyval == ((cdNumberNeeded << (cdNumberNeeded + 5)) | JKRES_MAGIC_3) )
-            goto LABEL_9;
-LABEL_10:
-        pHS->fileClose(v2);
-LABEL_11:
+
+#ifdef TARGET_TWL
+        v23 = 1;
+#endif
+        
         if ( v23 )
         {
             if ( v24 )
@@ -475,6 +498,10 @@ stdFile_t jkRes_FileOpen(const char *fpath, const char *mode)
     if ( resIdx >= 0x20 )
         return (stdFile_t)0;
     v6 = 0;
+
+#ifndef TARGET_TWL
+    // Try in the EXE root (not in resource/), ex "3do\key\kysabrf2.key"
+    // This was also used for `player/...` and `controls/...`
     fhand = pLowLevelHS->fileOpen(fpath, mode);
     if ( fhand )
     {
@@ -486,12 +513,15 @@ stdFile_t jkRes_FileOpen(const char *fpath, const char *mode)
         v6 = 1;
     }
     else
+#endif
     {
         for (v19 = 0; v19 < 5; v19++)
         {
             v11 = jkRes_gCtx.aGobDirectories[v19].name;
-            if (!v11) continue;
+            if (!v11 || !v11[0]) continue; // Added: Don't check in the root directory on Linux
 
+            // Try in episode/[episode name], resource/, etc
+            // ex: "episode\JK1\3do\key\kysabrf2.key", "resource/3do\key\kysabrf2.key"
             stdString_snprintf(jkRes_idkGobPath, 0x80u, "%s%c%s", v11, LEC_PATH_SEPARATOR_CHR, fpath);
             v12 = pLowLevelHS->fileOpen(jkRes_idkGobPath, mode);
             if ( v12 )
@@ -503,6 +533,8 @@ stdFile_t jkRes_FileOpen(const char *fpath, const char *mode)
                 jkRes_aFiles[resIdx].bOpened = 1;
                 v6 = 1;
             }
+
+            // Try in the GOB itself
             if ( !v6 )
             {
                 for (v18 = 0; v18 < jkRes_gCtx.aGobDirectories[v19].numGobs; v18++)
@@ -567,29 +599,29 @@ size_t jkRes_FileWrite(stdFile_t fd, void* out, size_t len)
         return 0; // GOB has no write function
 }
 
-char* jkRes_FileGets(stdFile_t fd, char* a2,size_t a3)
+const char* jkRes_FileGets(stdFile_t fd, char* str, size_t n)
 {
     jkResFile* resFile = &jkRes_aFiles[fd - 1];
-    if ( resFile->useLowLevel )
-        return pLowLevelHS->fileGets(resFile->fsHandle, a2, a3);
+    if (resFile->useLowLevel)
+        return pLowLevelHS->fileGets(resFile->fsHandle, str, n);
     else
-        return stdGob_FileGets(resFile->gobHandle, a2, a3);
+        return stdGob_FileGets(resFile->gobHandle, str, n);
 }
 
-wchar_t* jkRes_FileGetws(stdFile_t fd, wchar_t* a2, size_t a3)
+const wchar_t* jkRes_FileGetws(stdFile_t fd, wchar_t* wstr, size_t n)
 {
     jkResFile* resFile = &jkRes_aFiles[fd - 1];
-    if ( resFile->useLowLevel )
-        return pLowLevelHS->fileGetws(resFile->fsHandle, a2, a3);
+    if (resFile->useLowLevel)
+        return pLowLevelHS->fileGetws(resFile->fsHandle, wstr, n);
     else
-        return stdGob_FileGetws(resFile->gobHandle, a2, a3);
+        return stdGob_FileGetws(resFile->gobHandle, wstr, n);
 }
 
 int jkRes_FEof(stdFile_t fd)
 {
     jkResFile* resFile = &jkRes_aFiles[fd - 1];
     if ( resFile->useLowLevel )
-        return pLowLevelHS->feof(resFile->fsHandle);
+        return pLowLevelHS->fileEof(resFile->fsHandle);
     else
         return stdGob_FEof(resFile->gobHandle);
 }
@@ -633,6 +665,7 @@ int jkRes_FilePrintf(stdFile_t fd, const char* fmt, ...)
     jkResFile* resFile = &jkRes_aFiles[fd - 1];
     
     int v3 = __vsnprintf(std_genBuffer, 0x400u, fmt, va);
+    va_end(va);
     
     // No GOB impl
     if ( resFile->useLowLevel )
@@ -640,4 +673,3 @@ int jkRes_FilePrintf(stdFile_t fd, const char* fmt, ...)
 
     return 0;
 }
-
