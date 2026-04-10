@@ -149,8 +149,8 @@ int stdFileUtil_CountMatches(const char *path, int type, const char *extension)
 
 int stdFileUtil_DirExists(const char *path)
 {
-    _WIN32_FIND_DATAA findData;
-    HANDLE h = FindFirstFileA(path, &findData);
+    struct _WIN32_FIND_DATAA findData;
+    HANDLE h = FindFirstFileA(path, (LPWIN32_FIND_DATAA)&findData);
     if ( h != INVALID_HANDLE_VALUE )
     {
         FindClose(h);
