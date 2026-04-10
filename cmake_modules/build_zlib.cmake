@@ -32,7 +32,7 @@ ExternalProject_Add(
     BINARY_DIR          ${ZLIB_BINARY_DIR}
     INSTALL_DIR         ${ZLIB_INSTALL_DIR}
     UPDATE_DISCONNECTED TRUE
-    CMAKE_ARGS          --install-prefix ${ZLIB_INSTALL_DIR}
+    CMAKE_ARGS          --install-prefix ${ZLIB_INSTALL_DIR} -DCMAKE_INSTALL_LIBDIR=lib
                         ${ZLIB_TOOLCHAIN_ARG}
                         -DCMAKE_INSTALL_LIBDIR=lib
                         -DCMAKE_BUILD_TYPE:STRING=Release
