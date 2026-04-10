@@ -34,6 +34,7 @@ ExternalProject_Add(
     UPDATE_DISCONNECTED TRUE
     CMAKE_ARGS          --install-prefix ${ZLIB_INSTALL_DIR} -DCMAKE_INSTALL_LIBDIR=lib
                         ${ZLIB_TOOLCHAIN_ARG}
+                        -DCMAKE_INSTALL_LIBDIR=lib
                         -DCMAKE_BUILD_TYPE:STRING=Release
                         -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
                         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
