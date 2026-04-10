@@ -1520,10 +1520,9 @@ int sithMulti_ResetNetState()
 
 void sithMulti_CleanupThings(sithWorld *pWorld)
 {
-    int idx = 0;
     sithMulti_dword_83265C = 0;
 
-    for (int i = 0; i <= pWorld->numThingsLoaded; i++)
+    for (int i = 0; i < pWorld->numThingsLoaded; i++)
     {
         sithThing *pThing = &pWorld->things[i];
         if ( pThing->type == SITH_THING_CORPSE ) // type 2
@@ -1534,7 +1533,6 @@ void sithMulti_CleanupThings(sithWorld *pWorld)
         {
             pThing->thingflags |= 0x100;
         }
-        idx++;
     }
 }
 
