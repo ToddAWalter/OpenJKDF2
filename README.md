@@ -343,3 +343,7 @@ other          0.000%            0 / 107
 total          4.162%          105 / 2798
 
 ```
+
+## See Also
+
+- [OpenJK](https://github.com/JACoders/OpenJK) — Community-maintained open-source engine for Jedi Outcast (SP) and Jedi Academy (SP & MP), the sequels to Dark Forces II.
