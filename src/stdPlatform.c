@@ -16,6 +16,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "external/fcaseopen/fcaseopen.h"
 #endif
@@ -178,6 +179,11 @@ static const char* Linux_stdFileGets(stdFile_t fhand, char* dst, size_t len)
 #else
     return fgets(dst, len, (FILE*)fhand);
 #endif
+}
+
+static const wchar_t* Linux_stdFileGetws(stdFile_t fhand, wchar_t* dst, size_t len)
+{
+    return fgetws(dst, len, (FILE*)fhand);
 }
 
 static int Linux_stdFseek(stdFile_t fhand, int a, int b)
@@ -714,6 +720,7 @@ void stdPlatform_InitServices(HostServices *handlers)
     handlers->fileRead = Linux_stdFileRead;
     handlers->fileGets = Linux_stdFileGets;
     handlers->fileWrite = Linux_stdFileWrite;
+    handlers->fileGetws = Linux_stdFileGetws;
     handlers->fseek = Linux_stdFseek;
     handlers->ftell = Linux_stdFtell;
     handlers->getTimerTick = Linux_TimeMs;
