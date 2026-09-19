@@ -891,7 +891,7 @@ int __strnicmp(const char *a, const char *b, size_t c)
     return ca - cb;
 }
 
-#ifndef MACOS
+#if !defined(MACOS) && !defined(TARGET_IOS)
 char __tolower(char a)
 {
     return tolower(a);
@@ -938,9 +938,6 @@ void jk_BeginPaint(int a, struct tagPAINTSTRUCT * lpPaint)
 
 int jk_vsnwprintf(char16_t * a, size_t b, const char16_t *fmt, va_list list)
 {
-    // Added: was `return vswprintf(a, b, fmt, list);` under ARCH_WASM -- Emscripten's
-    // libc vswprintf() is a real 4-byte wchar_t implementation, not ours, and corrupted
-    // our 2-byte-wide strings. Use our own vsnwprintf_() everywhere instead.
     return vsnwprintf_(a, b, fmt, list);
 }
 

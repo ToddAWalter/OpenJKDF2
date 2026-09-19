@@ -42,6 +42,14 @@
 
 #include "SDL2_helper.h"
 
+#ifdef TARGET_IOS
+#include "Platform/iOS/iosAngle.h"
+#define SDL_GL_SwapWindow(pWindow)          iosAngle_SwapBuffers()
+#define SDL_GL_SetSwapInterval(interval)    iosAngle_SetSwapInterval(interval)
+#define SDL_GL_DestroyContext(pContext)     iosAngle_DestroyContext()
+#define SDL_GL_MakeCurrent(pWindow, pCtx)   ((void)0)
+#endif
+
 #include <string.h>
 
 //#include <GL/glew.h>
@@ -829,8 +837,6 @@ void Window_SdlUpdate()
                 stdControl_InitSdlJoysticks();
                 break;
             }
-            // Added: field-debug (Ayn Thor axes-dead hunt) — gamepad-layer events;
-            // removal/disconnect wedges axis reads while buttons kept working.
             case SDL_EVENT_GAMEPAD_ADDED:
                 stdPlatform_Printf("[ev] GAMEPAD_ADDED %d\n", (int)event.gdevice.which);
                 break;
@@ -1398,12 +1404,11 @@ void Window_RecreateSDL2Window()
 #endif
 
 #ifdef TARGET_ANDROID
-    // Fixed: SDL_WINDOW_SHOWN removed (windows are shown by default in SDL3), but this
-    // also dropped SDL_WINDOW_OPENGL, which SDL3 requires on the window before
-    // SDL_GL_CreateContext will succeed (SDL2 was more lenient on Android) -- caused
-    // "Failed to initialize SDL OpenGL Context // The specified window isn't an OpenGL
-    // window" at runtime.
     flags = SDL_WINDOW_OPENGL;
+#endif
+
+#ifdef TARGET_IOS
+    flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 #endif
 
     // SDL3 SDL_CreateWindow() dropped the x/y position params; position is set
@@ -1423,13 +1428,22 @@ void Window_RecreateSDL2Window()
     }
     //SDL_SetRenderDrawBlendMode(displayRenderer, SDL_BLENDMODE_BLEND);
 
-#if !defined(ARCH_WASM) && !defined(TARGET_ANDROID)
+#if !defined(ARCH_WASM) && !defined(TARGET_ANDROID) && !defined(TARGET_IOS)
     SDL_SetWindowPosition(displayWindow, Window_xPos, Window_yPos);
 #endif
 
     SDL_SetWindowFullscreen(displayWindow, Window_isFullscreen ? true : false);
     SDL_RaiseWindow(displayWindow);
 
+#ifdef TARGET_IOS
+    if (!iosAngle_CreateContext(displayWindow))
+    {
+        char errtmp[320];
+        snprintf(errtmp, sizeof(errtmp), "!! Failed to initialize ANGLE !!\n%s", iosAngle_GetError());
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", errtmp, NULL);
+        exit(-1);
+    }
+#else
     glWindowContext = SDL_GL_CreateContext(displayWindow);
     
     // Retry with 3.30 instead
@@ -1460,10 +1474,11 @@ void Window_RecreateSDL2Window()
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", errtmp, NULL);
         exit(-1);
     }
+#endif // TARGET_IOS
 
     SDL_GL_MakeCurrent(displayWindow, glWindowContext);
     SDL_GL_SetSwapInterval(jkPlayer_enableVsync); // Disable vsync
-#ifndef TARGET_ANDROID
+#if !defined(TARGET_ANDROID) && !defined(TARGET_IOS)
     SDL_StartTextInput(displayWindow);
 #endif
 
@@ -1511,6 +1526,11 @@ int Window_Main_Linux(int argc, char** argv)
     SDL_SetHint("SDL_MIXER_DEBUG_MUSIC_INTERFACES", "1");
     SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "aaudio"); // This is fine for music tbh
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+#endif
+
+#if defined(TARGET_IOS)
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI, "1");
 #endif
 
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD);
@@ -1570,7 +1590,7 @@ int Window_Main_Linux(int argc, char** argv)
 #endif
 
     Window_RecreateSDL2Window();
-#if !defined(TARGET_ANDROID) && !defined(ARCH_WASM) && !defined(RENDER_GL11)
+#if !defined(TARGET_ANDROID) && !defined(TARGET_IOS) && !defined(ARCH_WASM) && !defined(RENDER_GL11)
     glewInit();
 #endif
     

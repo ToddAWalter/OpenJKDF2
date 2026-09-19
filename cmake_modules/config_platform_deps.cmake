@@ -63,7 +63,10 @@ set(GLEW_USE_STATIC_LIBS TRUE)
 if(NOT CMAKE_CROSSCOMPILING)
     find_package(GLEW 2.2.0)
 endif()
-if((NOT GLEW_FOUND OR CMAKE_CROSSCOMPILING) AND NOT PLAT_WASM AND NOT TARGET_USE_OPENGL11)
+# GLEW is a desktop-GL extension loader; the GLES targets (WASM, Android, iOS)
+# get their entry points straight from the GLES library -- on iOS that library is
+# ANGLE, and building GLEW for the iOS SDK fails outright (no GL/glx headers).
+if((NOT GLEW_FOUND OR CMAKE_CROSSCOMPILING) AND NOT PLAT_WASM AND NOT TARGET_USE_OPENGL11 AND NOT TARGET_IOS)
     message(STATUS "Going to build “GLEW 2.2.0” from Git module")
     include(build_glew)
 endif()
@@ -218,6 +221,17 @@ if(TARGET_LINUX)
     add_definitions(-DLINUX)
     add_definitions(-DPLATFORM_LINUX)
     add_definitions(-DPLATFORM_NO_CACERT_BLOB)
+endif()
+
+if(TARGET_IOS)
+    file(GLOB TARGET_IOS_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/iOS/*.c)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_IOS_SRCS})
+    file(GLOB TARGET_IOS_M_SRCS ${PROJECT_SOURCE_DIR}/src/Platform/iOS/*.m)
+    list(APPEND ENGINE_SOURCE_FILES ${TARGET_IOS_M_SRCS})
+
+    # No nativefiledialog-extended backend exists for iOS (nfd_cocoa.m is
+    # NSOpenPanel/AppKit), so InstallHelper's folder-picker path is compiled out
+    # there -- assets are dropped into the app's Documents dir instead.
 endif()
 
 if(TARGET_MACOS)
